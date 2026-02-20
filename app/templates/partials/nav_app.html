@@ -1,0 +1,39 @@
+<nav class="sticky top-0 z-40 border-b border-slate-200 bg-white/80 backdrop-blur">
+  <div class="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="h-10 w-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-sm">
+        🔥
+      </div>
+      <div class="leading-tight">
+        <div class="font-extrabold tracking-tight">FECHA INSTALAÇÃO</div>
+        <div class="text-xs text-slate-500 -mt-0.5">O jeito simples do instalador fechar mais serviço.</div>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <a href="/app"
+         class="hidden sm:inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-extrabold border border-slate-200 bg-white hover:bg-slate-50">
+        Orçamentos
+      </a>
+
+      {% if user.is_pro %}
+        <a href="/app/reports"
+           class="hidden sm:inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-extrabold border border-slate-200 bg-white hover:bg-slate-50">
+          Relatórios <span class="text-xs">💎</span>
+        </a>
+      {% endif %}
+
+      {% if not user.is_pro %}
+        <a href="/app/upgrade"
+           class="hidden sm:inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-extrabold text-white bg-slate-900 hover:bg-slate-800 shadow-sm">
+          Virar Premium
+        </a>
+      {% endif %}
+
+      <a href="/logout"
+         class="inline-flex items-center justify-center rounded-2xl px-4 py-2 text-sm font-extrabold bg-white border border-slate-200 hover:bg-slate-50">
+        Sair
+      </a>
+    </div>
+  </div>
+</nav>

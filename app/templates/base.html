@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <title>FECHA INSTALAÇÃO</title>
+
+  <!-- SEO básico -->
+  <meta name="description" content="Sistema simples para instaladores criarem orçamentos, enviarem no WhatsApp e fazerem follow-up automático." />
+  <meta name="theme-color" content="#ea580c" />
+
+  <!-- Fonte mais premium -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              500: '#f97316',
+              600: '#ea580c',
+              700: '#c2410c',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <link rel="stylesheet" href="/static/css/styles.css" />
+</head>
+
+<body class="font-sans bg-gradient-to-br from-slate-50 via-white to-slate-100 text-slate-900">
+
+  <!-- Background blur decorativo -->
+  <div class="fixed inset-0 -z-10 overflow-hidden">
+    <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[700px] bg-orange-500/10 blur-3xl rounded-full"></div>
+    <div class="absolute bottom-0 right-0 w-[600px] h-[600px] bg-slate-900/5 blur-3xl rounded-full"></div>
+  </div>
+
+  <div class="min-h-screen flex flex-col">
+    {% block body %}{% endblock %}
+  </div>
+
+</body>
+</html>

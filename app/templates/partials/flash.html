@@ -1,0 +1,19 @@
+{% if flashes and flashes|length > 0 %}
+  <div class="mx-auto w-full max-w-md px-4 pt-4">
+    {% for f in flashes %}
+      {% set kind = f.get('kind','info') %}
+      {% set msg = f.get('message','') %}
+      <div class="rounded-2xl border bg-white shadow-sm px-4 py-3 mb-3
+                  {% if kind == 'success' %} border-emerald-200 {% endif %}
+                  {% if kind == 'error' %} border-rose-200 {% endif %}
+                  {% if kind == 'info' %} border-slate-200 {% endif %}">
+        <p class="text-sm font-medium
+                  {% if kind == 'success' %} text-emerald-700 {% endif %}
+                  {% if kind == 'error' %} text-rose-700 {% endif %}
+                  {% if kind == 'info' %} text-slate-700 {% endif %}">
+          {{ msg }}
+        </p>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}

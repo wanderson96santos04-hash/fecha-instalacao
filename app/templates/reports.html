@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block body %}
+  {% include "partials/nav_app.html" %}
+  {% include "partials/flash.html" %}
+
+  <main class="mx-auto max-w-5xl px-4 py-6">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <p class="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-extrabold text-slate-700">
+          💎 RELATÓRIOS PREMIUM
+          <span class="text-slate-400">•</span>
+          Visão do seu lucro
+        </p>
+        <h1 class="mt-3 text-2xl md:text-3xl font-extrabold tracking-tight">Relatórios</h1>
+        <p class="mt-1 text-sm text-slate-600">
+          Aqui você enxerga o que está fechando e o que está te fazendo perder serviço.
+        </p>
+      </div>
+
+      <a href="/app"
+         class="w-full sm:w-auto text-center rounded-2xl px-6 py-3 font-extrabold bg-white border border-slate-200 hover:bg-slate-100 shadow-sm">
+        Voltar
+      </a>
+    </div>
+
+    <!-- KPIs -->
+    <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+        <p class="text-xs font-bold text-slate-500">Total fechado (estimado)</p>
+        <p class="mt-2 text-2xl font-extrabold">R$ {{ "%.2f"|format(kpis.won_value) }}</p>
+        <p class="mt-1 text-xs text-slate-500">Baseado nos orçamentos marcados como “Fechado”.</p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+        <p class="text-xs font-bold text-slate-500">Total perdido (estimado)</p>
+        <p class="mt-2 text-2xl font-extrabold">R$ {{ "%.2f"|format(kpis.lost_value) }}</p>
+        <p class="mt-1 text-xs text-slate-500">Dinheiro que escapou por falta de follow-up.</p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+        <p class="text-xs font-bold text-slate-500">Fechados</p>
+        <p class="mt-2 text-2xl font-extrabold">{{ kpis.won }}</p>
+        <p class="mt-1 text-xs text-slate-500">Orçamentos convertidos em serviço.</p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+        <p class="text-xs font-bold text-slate-500">Taxa de conversão</p>
+        <p class="mt-2 text-2xl font-extrabold">{{ "%.1f"|format(kpis.conversion) }}%</p>
+        <p class="mt-1 text-xs text-slate-500">Considera Fechado x Perdido.</p>
+      </div>
+    </div>
+
+    <!-- Gráfico + Ranking -->
+    <div class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 lg:col-span-2">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="text-sm font-extrabold">Fechado por semana</p>
+            <p class="mt-1 text-xs text-slate-500">Últimas 6 semanas</p>
+          </div>
+          <span class="inline-flex items-center gap-2 rounded-full bg-slate-900 text-white px-3 py-1 text-xs font-extrabold">
+            💎 Premium
+          </span>
+        </div>
+
+        <div class="mt-4">
+          <canvas id="closedChart" height="110"></canvas>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <p class="text-sm font-extrabold">Ranking de serviços (fechados)</p>
+        <p class="mt-1 text-xs text-slate-500">Top 8 do que mais te dá resultado.</p>
+
+        <div class="mt-4 space-y-3">
+          {% if ranking|length == 0 %}
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p class="text-sm font-bold">Sem dados ainda.</p>
+              <p class="mt-1 text-xs text-slate-500">Marque alguns orçamentos como “Fechado”.</p>
+            </div>
+          {% endif %}
+
+          {% for name, qty in ranking %}
+            <div class="rounded-2xl border border-slate-200 bg-white p-4">
+              <div class="flex items-center justify-between gap-3">
+                <p class="text-sm font-extrabold text-slate-900">{{ name }}</p>
+                <span class="rounded-full bg-slate-900 text-white px-3 py-1 text-xs font-extrabold">
+                  {{ qty }}
+                </span>
+              </div>
+              <div class="mt-3 h-2 w-full rounded-full bg-slate-100 overflow-hidden">
+                <div class="h-full rounded-full bg-slate-900" style="width: {{ (qty * 20) if (qty * 20) <= 100 else 100 }}%;"></div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-6 text-center text-xs text-slate-500">
+      💎 Relatórios Premium • visão estratégica pra fechar mais serviço
+    </div>
+  </main>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>
+    const labels = {{ chart_labels | tojson }};
+    const values = {{ chart_values | tojson }};
+
+    const ctx = document.getElementById("closedChart");
+    new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [{
+          label: "Fechados",
+          data: values,
+          borderWidth: 0,
+          borderRadius: 12
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (item) => ` Fechados: ${item.raw}`
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: { precision: 0 }
+          }
+        }
+      }
+    });
+  </script>
+{% endblock %}

@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block body %}
+  {% include "partials/nav_app.html" %}
+  {% include "partials/flash.html" %}
+
+  <main class="mx-auto w-full max-w-4xl px-4 py-6">
+
+    <section class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-10">
+
+      <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
+        <div>
+          <p class="inline-flex items-center gap-2 rounded-full bg-orange-100 px-4 py-2 text-xs font-bold text-orange-700">
+            🔥 NOVO ORÇAMENTO
+          </p>
+
+          <h1 class="mt-4 text-2xl md:text-3xl font-extrabold tracking-tight">
+            Preencha e envie no WhatsApp com 1 clique
+          </h1>
+
+          <p class="mt-2 text-sm md:text-base text-slate-600">
+            Em menos de 1 minuto você cria, envia e já deixa pronto o follow-up.
+          </p>
+        </div>
+
+        <a href="/app"
+           class="w-full md:w-auto text-center rounded-2xl px-6 py-4 font-extrabold bg-white border border-slate-200 hover:bg-slate-100 shadow-sm">
+          Voltar
+        </a>
+      </div>
+
+      {% if blocked %}
+        <div class="mt-8 rounded-3xl border-2 border-rose-300 bg-rose-50 p-6">
+          <p class="text-lg font-extrabold text-rose-800">Limite do Free atingido.</p>
+          <p class="mt-2 text-sm text-rose-700">
+            Você já criou <span class="font-extrabold">{{ total }}</span> orçamentos.
+            Limite do Free: <span class="font-extrabold">{{ limit }}</span>.
+          </p>
+
+          <div class="mt-5 rounded-2xl bg-white border border-rose-200 p-4">
+            <p class="text-sm font-extrabold text-slate-900">Quer ilimitado?</p>
+            <p class="mt-1 text-sm text-slate-600">
+              Vire Pro e crie quantos orçamentos quiser por R$ 39,90/mês.
+            </p>
+          </div>
+
+          <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <a href="/upgrade"
+               class="w-full text-center rounded-2xl px-6 py-4 font-extrabold text-white bg-orange-600 hover:bg-orange-500 shadow-lg">
+              🚀 Virar Pro agora
+            </a>
+
+            <a href="/app"
+               class="w-full text-center rounded-2xl px-6 py-4 font-extrabold bg-slate-900 text-white hover:bg-slate-800 shadow-sm">
+              Voltar para o Dashboard
+            </a>
+          </div>
+        </div>
+
+      {% else %}
+        <form class="mt-10 space-y-6" method="post" action="/app/budgets/new">
+
+          <!-- BLOCO 1 -->
+          <div class="rounded-3xl border border-slate-200 bg-slate-50 p-6">
+            <p class="text-sm font-extrabold text-slate-900">Cliente</p>
+
+            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-bold text-slate-700">Nome do cliente</label>
+                <input name="client_name" required
+                       class="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-base outline-none focus:ring-2 focus:ring-orange-500"
+                       placeholder="Ex: João" />
+              </div>
+
+              <div>
+                <label class="block text-sm font-bold text-slate-700">Telefone</label>
+                <input name="phone" required
+                       class="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-base outline-none focus:ring-2 focus:ring-orange-500"
+                       placeholder="Ex: (31) 99999-9999" />
+                <p class="mt-2 text-xs text-slate-500">
+                  Dica: pode digitar com ou sem DDD que o sistema ajusta.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- BLOCO 2 -->
+          <div class="rounded-3xl border border-slate-200 bg-slate-50 p-6">
+            <p class="text-sm font-extrabold text-slate-900">Serviço</p>
+
+            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-bold text-slate-700">Tipo de serviço</label>
+                <input name="service_type" required
+                       class="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-base outline-none focus:ring-2 focus:ring-orange-500"
+                       placeholder="Ex: Portão / Cerca / Solda" />
+              </div>
+
+              <div>
+                <label class="block text-sm font-bold text-slate-700">Valor</label>
+                <input name="value" required
+                       class="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-base outline-none focus:ring-2 focus:ring-orange-500"
+                       placeholder="Ex: R$ 1.200" />
+              </div>
+            </div>
+
+            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-bold text-slate-700">Forma de pagamento</label>
+                <input name="payment_method" required
+                       class="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-base outline-none focus:ring-2 focus:ring-orange-500"
+                       placeholder="Ex: Pix / Cartão / Dinheiro" />
+              </div>
+
+              <div>
+                <label class="block text-sm font-bold text-slate-700">Observações</label>
+                <textarea name="notes" rows="4"
+                          class="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-base outline-none focus:ring-2 focus:ring-orange-500"
+                          placeholder="Detalhes do serviço, prazo, materiais, etc."></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- CTA -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button class="w-full rounded-2xl px-6 py-5 font-extrabold text-white bg-orange-600 hover:bg-orange-500 shadow-lg text-lg">
+              ✅ Criar orçamento
+            </button>
+
+            <a href="/app"
+               class="w-full text-center rounded-2xl px-6 py-5 font-extrabold bg-white border border-slate-200 hover:bg-slate-100 shadow-sm text-lg">
+              Cancelar
+            </a>
+          </div>
+
+          <p class="text-center text-xs text-slate-400">
+            Depois de criar, você pode enviar no WhatsApp e marcar o status.
+          </p>
+
+        </form>
+      {% endif %}
+
+    </section>
+
+  </main>
+{% endblock %}
