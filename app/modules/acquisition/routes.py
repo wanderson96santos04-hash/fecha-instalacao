@@ -1,12 +1,12 @@
-﻿from flask import Blueprint, render_template
+﻿"""
+Compatibilidade / legado.
 
-bp = Blueprint(
-    "acquisition",
-    __name__,
-    url_prefix="/acquisition",
-    template_folder="templates",
-)
+Este projeto é FastAPI.
+Este arquivo existia quando foi criado um rascunho em Flask.
 
-@bp.get("/")
-def acquisition_home():
-    return render_template("acquisition/acquisition.html")
+IMPORTANTE:
+- Não é utilizado pelo app principal.
+- Mantido apenas para não quebrar imports acidentais e evitar erro no deploy.
+- NÃO altera nenhuma funcionalidade existente.
+"""
+# Intencionalmente vazio.
