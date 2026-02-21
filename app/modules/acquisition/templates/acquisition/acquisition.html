@@ -2,10 +2,9 @@
 
 {% block body %}
 <main class="flex-1">
-  <div class="max-w-5xl mx-auto px-6 py-12">
-
+  <div class="max-w-5xl mx-auto px-4 py-10">
     <div class="text-center">
-      <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+      <h1 class="text-3xl md:text-4xl font-black tracking-tight text-slate-900">
         Módulo de Aquisição
       </h1>
       <p class="mt-2 text-slate-600">
@@ -13,90 +12,70 @@
       </p>
     </div>
 
-    <div class="mt-10 grid gap-6 place-items-center">
+    <div class="mt-10 flex justify-center">
+      <div class="w-full max-w-md bg-white/80 backdrop-blur rounded-2xl shadow-xl border border-slate-200 p-6">
+        <form method="post" action="/acquisition/generate" class="space-y-4">
+          <div>
+            <label class="block text-sm font-semibold text-slate-800 mb-1">Nicho</label>
+            <input
+              name="nicho"
+              type="text"
+              class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-4 focus:ring-orange-200 focus:border-orange-400"
+              placeholder="Ex: Energia Solar"
+              value="{{ nicho | default('') }}"
+              required
+            />
+          </div>
 
-      <!-- CARD FORM -->
-      <section class="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-xl">
-        <div class="p-6 md:p-7">
+          <div>
+            <label class="block text-sm font-semibold text-slate-800 mb-1">Cidade</label>
+            <input
+              name="cidade"
+              type="text"
+              class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-4 focus:ring-orange-200 focus:border-orange-400"
+              placeholder="Ex: São Paulo"
+              value="{{ cidade | default('') }}"
+              required
+            />
+          </div>
 
-          <form method="post" action="/acquisition/generate" class="space-y-4">
+          <div>
+            <label class="block text-sm font-semibold text-slate-800 mb-1">Tipo de Serviço</label>
+            <input
+              name="servico"
+              type="text"
+              class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-4 focus:ring-orange-200 focus:border-orange-400"
+              placeholder="Ex: Instalação residencial"
+              value="{{ servico | default('') }}"
+              required
+            />
+          </div>
 
-            <div>
-              <label class="block text-sm font-semibold text-slate-800">
-                Nicho
-              </label>
-              <input
-                type="text"
-                name="nicho"
-                value="{{ form.nicho if form is defined else '' }}"
-                placeholder="Ex: Energia Solar"
-                class="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
-              />
-            </div>
+          <button
+            type="submit"
+            class="w-full mt-2 rounded-xl bg-brand-600 text-white font-bold py-3 shadow-lg shadow-orange-500/20 hover:bg-brand-700 active:scale-[0.99] transition"
+          >
+            Gerar mensagens
+          </button>
+        </form>
+      </div>
+    </div>
 
-            <div>
-              <label class="block text-sm font-semibold text-slate-800">
-                Cidade
-              </label>
-              <input
-                type="text"
-                name="cidade"
-                value="{{ form.cidade if form is defined else '' }}"
-                placeholder="Ex: São Paulo"
-                class="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
-              />
-            </div>
-
-            <div>
-              <label class="block text-sm font-semibold text-slate-800">
-                Tipo de Serviço
-              </label>
-              <input
-                type="text"
-                name="tipo_servico"
-                value="{{ form.tipo_servico if form is defined else '' }}"
-                placeholder="Ex: Instalação residencial"
-                class="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
-              />
-            </div>
-
-            <button
-              type="submit"
-              class="w-full rounded-xl bg-orange-600 py-3 font-semibold text-white hover:bg-orange-700 transition"
-            >
-              Gerar mensagens
-            </button>
-
-          </form>
-
-        </div>
-      </section>
-
-      <!-- RESULTADO -->
-      <section class="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-lg">
-        <div class="p-6">
-
-          <h2 class="text-sm font-bold text-slate-800">
-            Mensagens geradas
-          </h2>
-
-          {% if messages is defined and messages %}
-            <div class="mt-4 space-y-3">
-              {% for msg in messages %}
-                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 whitespace-pre-wrap">
-                  {{ msg }}
-                </div>
-              {% endfor %}
-            </div>
-          {% else %}
-            <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-              Aqui aparecerão as 10 mensagens personalizadas.
-            </div>
-          {% endif %}
-
-        </div>
-      </section>
-
+    <div class="mt-6 flex justify-center">
+      <div class="w-full max-w-md bg-white/70 backdrop-blur rounded-2xl shadow border border-slate-200 p-5">
+        {% if messages %}
+          <h2 class="text-sm font-bold text-slate-800 mb-3">Mensagens geradas</h2>
+          <ol class="space-y-2 list-decimal list-inside text-slate-700">
+            {% for m in messages %}
+              <li class="leading-relaxed">{{ m }}</li>
+            {% endfor %}
+          </ol>
+        {% else %}
+          <p class="text-slate-600">
+            Aqui aparecerão as 10 mensagens personalizadas.
+          </p>
+        {% endif %}
+      </div>
     </div>
   </div>
 </main>
