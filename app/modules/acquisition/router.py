@@ -4,11 +4,11 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+
+# ✅ usa o MESMO templates do app principal (layout Premium idêntico)
+from main import templates
 
 router = APIRouter(prefix="/acquisition", tags=["Acquisition"])
-
-templates = Jinja2Templates(directory="app/templates")
 
 
 @router.get("", response_class=HTMLResponse)
@@ -19,5 +19,7 @@ def acquisition_home(request: Request):
         {
             "request": request,
             "now": datetime.now(timezone.utc),
+            # mantém o padrão do seu app principal
+            "product_name": "FECHA INSTALAÇÃO",
         },
     )
