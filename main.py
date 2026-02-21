@@ -58,6 +58,15 @@ app.include_router(auth_router)
 app.include_router(app_router)
 app.include_router(webhook_router)
 
+# ✅ MÓDULOS ISOLADOS (opcional e seguro)
+# Se o módulo ainda não existir/estiver pronto, não quebra nada.
+try:
+    from app.modules.acquisition.router import router as acquisition_router  # novo módulo FastAPI
+    app.include_router(acquisition_router)
+except Exception as e:
+    # Mantém o sistema 100% estável e ainda mostra o motivo no log (Render)
+    print(f"[modules] Acquisition router NOT loaded: {e}")
+
 
 @app.exception_handler(401)
 def _unauthorized(_, __):
