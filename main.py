@@ -14,6 +14,7 @@ from app.routes.app import router as app_router
 from app.routes.webhook import router as webhook_router
 
 app = FastAPI(title="FECHA INSTALAÇÃO", version="0.1.0")
+print(">>> MAIN.PY LOADED (commit c0a53a3)")
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
@@ -64,7 +65,6 @@ try:
     from app.modules.acquisition.router import router as acquisition_router  # novo módulo FastAPI
     app.include_router(acquisition_router)
 except Exception as e:
-    # Mantém o sistema 100% estável e ainda mostra o motivo no log (Render)
     print(f"[modules] Acquisition router NOT loaded: {e}")
 
 
