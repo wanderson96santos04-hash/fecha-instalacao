@@ -1,23 +1,107 @@
 ﻿{% extends "base.html" %}
+{% block body %}
 
-{% block content %}
-<div class="container py-4">
-    <div class="row justify-content-center">
-        <div class="col-lg-8">
-
-            <div class="card shadow-sm rounded-4 p-4">
-                <h4 class="mb-3">Módulo de Aquisição</h4>
-                <p class="text-muted">
-                    Gerador de mensagens de prospecção para WhatsApp.
-                </p>
-
-                <div class="alert alert-light border rounded-3">
-                    Em breve: formulário para gerar mensagens personalizadas.
-                </div>
-
-            </div>
-
-        </div>
+<main class="flex-1">
+  <div class="max-w-4xl mx-auto px-4 py-12">
+    <div class="text-center">
+      <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+        Módulo de Aquisição
+      </h1>
+      <p class="mt-2 text-slate-600">
+        Gerador de mensagens de prospecção para WhatsApp.
+      </p>
     </div>
-</div>
+
+    <div class="mt-10 grid gap-6 place-items-center">
+      <!-- CARD FORM -->
+      <div class="w-full max-w-md rounded-2xl bg-white/80 backdrop-blur shadow-xl shadow-slate-900/5 ring-1 ring-slate-200 p-6">
+        {% if errors %}
+          <div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <ul class="list-disc pl-5 space-y-1">
+              {% for e in errors %}
+                <li>{{ e }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+
+        <form method="post" action="/acquisition/generate" class="space-y-4">
+          <div>
+            <label class="block text-sm font-semibold text-slate-800">Nicho</label>
+            <input
+              name="nicho"
+              value="{{ nicho }}"
+              type="text"
+              placeholder="Ex: Energia Solar"
+              class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none focus:border-brand-600 focus:ring-4 focus:ring-brand-500/15"
+              required
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-slate-800">Cidade</label>
+            <input
+              name="cidade"
+              value="{{ cidade }}"
+              type="text"
+              placeholder="Ex: São Paulo"
+              class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none focus:border-brand-600 focus:ring-4 focus:ring-brand-500/15"
+              required
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-slate-800">Tipo de Serviço</label>
+            <input
+              name="servico"
+              value="{{ servico }}"
+              type="text"
+              placeholder="Ex: Instalação residencial"
+              class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none focus:border-brand-600 focus:ring-4 focus:ring-brand-500/15"
+              required
+            />
+          </div>
+
+          <button
+            type="submit"
+            class="mt-2 w-full rounded-xl bg-brand-600 px-4 py-3 font-semibold text-white shadow-lg shadow-brand-600/20 hover:bg-brand-700 focus:outline-none focus:ring-4 focus:ring-brand-500/25"
+          >
+            Gerar mensagens
+          </button>
+
+          <p class="text-xs text-slate-500">
+            Dica: mande fotos + medidas e já feche o serviço no WhatsApp.
+          </p>
+        </form>
+      </div>
+
+      <!-- RESULT -->
+      <div class="w-full max-w-2xl rounded-2xl bg-white/70 backdrop-blur shadow-xl shadow-slate-900/5 ring-1 ring-slate-200 p-6">
+        <div class="flex items-center justify-between gap-4">
+          <h2 class="text-base font-bold text-slate-900">Mensagens geradas</h2>
+          <span class="text-xs text-slate-500">Total: {{ messages|length }}</span>
+        </div>
+
+        {% if messages and messages|length > 0 %}
+          <div class="mt-4 space-y-3">
+            {% for m in messages %}
+              <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <div class="text-sm text-slate-800 leading-relaxed">{{ m }}</div>
+              </div>
+            {% endfor %}
+          </div>
+
+          <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            Copie uma mensagem, cole no WhatsApp e ajuste só o que for necessário (bairro, medida, prazo).
+          </div>
+        {% else %}
+          <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-600">
+            Preencha o formulário e clique em <b>Gerar mensagens</b>. Aqui vão aparecer 10 mensagens personalizadas.
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</main>
+
 {% endblock %}
