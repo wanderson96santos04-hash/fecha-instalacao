@@ -1,6 +1,8 @@
 ﻿{% extends "base.html" %}
 
 {% block body %}
+{% set f = form|default({'nicho':'','cidade':'','servico':''}) %}
+
 <main class="flex-1">
   <div class="max-w-6xl mx-auto px-4 py-10">
     <header class="text-center mb-10">
@@ -15,12 +17,12 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
       <!-- FORM -->
       <section class="bg-white/80 backdrop-blur rounded-2xl shadow-lg border border-slate-200 p-6 md:p-7">
-        <form method="get" action="/acquisition/generate" class="space-y-5">
+        <form method="post" action="/acquisition/generate" class="space-y-5">
           <div>
             <label class="block text-sm font-semibold text-slate-800 mb-2">Nicho</label>
             <input
               name="nicho"
-              value="{{ nicho|default('') }}"
+              value="{{ f.nicho|default('') }}"
               class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600/30 focus:border-brand-600"
               placeholder="Ex: Energia Solar"
               required
@@ -31,7 +33,7 @@
             <label class="block text-sm font-semibold text-slate-800 mb-2">Cidade</label>
             <input
               name="cidade"
-              value="{{ cidade|default('') }}"
+              value="{{ f.cidade|default('') }}"
               class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600/30 focus:border-brand-600"
               placeholder="Ex: São Paulo"
               required
@@ -42,7 +44,7 @@
             <label class="block text-sm font-semibold text-slate-800 mb-2">Tipo de Serviço</label>
             <input
               name="servico"
-              value="{{ servico|default('') }}"
+              value="{{ f.servico|default('') }}"
               class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600/30 focus:border-brand-600"
               placeholder="Ex: Instalação residencial"
               required
@@ -134,7 +136,6 @@
         </div>
 
         {% if messages is defined and messages %}
-          <!-- Texto bem discreto, “premium” -->
           <p class="mt-4 text-xs text-slate-400">
             Dica: use “Copiar” e cole direto no WhatsApp.
           </p>
@@ -159,7 +160,6 @@
         await navigator.clipboard.writeText(text);
         showToast();
       } catch (e) {
-        // fallback antigo
         const ta = document.createElement("textarea");
         ta.value = text;
         document.body.appendChild(ta);
@@ -170,7 +170,6 @@
       }
     };
 
-    // Copiar individual
     document.querySelectorAll(".copyBtn").forEach((btn) => {
       btn.addEventListener("click", () => {
         const msg = btn.getAttribute("data-message") || "";
@@ -178,7 +177,6 @@
       });
     });
 
-    // Copiar todas
     const copyAllBtn = document.getElementById("copyAllBtn");
     if (copyAllBtn) {
       copyAllBtn.addEventListener("click", () => {
