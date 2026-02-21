@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Dict, List
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
@@ -10,24 +11,34 @@ router = APIRouter(prefix="/acquisition", tags=["Acquisition"])
 templates = Jinja2Templates(directory="app/templates")
 
 
-def _build_messages(nicho: str, cidade: str, servico: str) -> list[str]:
-    n = nicho.strip()
-    c = cidade.strip()
-    s = servico.strip()
+def _build_messages(nicho: str, cidade: str, servico: str) -> List[str]:
+    """
+    Gera 10 mensagens curtas e bem personalizadas para WhatsApp,
+    usando nicho/cidade/serviço (sem depender de API externa).
+    """
+    nicho = (nicho or "").strip()
+    cidade = (cidade or "").strip()
+    servico = (servico or "").strip()
 
-    # 10 variações com objetivos diferentes: abertura, prova, urgência, follow-up, etc.
-    return [
-        f"Olá! Tudo bem? Vi que você é de {c}. Eu trabalho com {s} ({n}). Posso te mandar uma opção rápida de orçamento sem compromisso?",
-        f"Oi! Sou especialista em {s} para {n} aqui em {c}. Você está precisando de orçamento ou só pesquisando valores por agora?",
-        f"Boa! Passando porque atendo {c} e faço {s} focado em {n}. Quer que eu te pergunte 2 coisinhas e já te passo um valor aproximado?",
-        f"Olá 👋 Atendo {c}. Trabalho com {s} voltado para {n}. Se você me disser o que precisa, eu já te retorno com prazo + valor estimado.",
-        f"Oi! Consegue me dizer o que você quer exatamente em {s}? É para {n} em {c}, certo? Com isso eu já te mando um orçamento bem certeiro.",
-        f"Olá! Tenho agenda essa semana em {c} para {s}. É para {n}? Se quiser, te passo as opções e você escolhe a melhor.",
-        f"Oi! Posso te mandar 3 opções de orçamento para {s} (voltado para {n}) aí em {c}: econômico, padrão e premium. Quer?",
-        f"Olá 🙂 Só confirmando: ainda precisa de {s} para {n} em {c}? Se sim, me fala o melhor horário que eu te respondo com orçamento.",
-        f"Oi! Vi sua necessidade de {s}. Eu atendo {c} e faço serviço bem caprichado para {n}. Quer que eu te mande uma proposta por WhatsApp agora?",
-        f"Última mensagem pra não te incomodar 😄 Você ainda quer orçamento de {s} ({n}) em {c}? Se responder “sim”, eu já te mando as opções.",
+    contexto = " ".join([p for p in [servico, f"em {cidade}" if cidade else "", f"({nicho})" if nicho else ""] if p]).strip()
+    if not contexto:
+        contexto = "seu serviço"
+
+    # Mensagens objetivas, com variações reais (não só “Oi tudo bem?” repetido)
+    msgs = [
+        f"Oi! Vi que você atende/precisa de {contexto}. Posso te passar uma estimativa rápida sem compromisso?",
+        f"Olá! Trabalho com {contexto}. Quer que eu te mande as opções (básica/intermediária/premium) e valores?",
+        f"Bom dia! Faço {contexto}. Você prefere orçamento por foto/vídeo ou eu te faço 3 perguntas e já te envio?",
+        f"Oi! Consigo te orientar no {contexto} e já deixar tudo no jeito. Qual o melhor horário pra eu te chamar aqui?",
+        f"Olá! Estou com agenda aberta essa semana para {contexto}. Quer que eu reserve um horário e te envio o valor antes?",
+        f"Oi! Pra {contexto}, geralmente o que mais muda o preço é: medidas/material/acesso. Me diz rapidinho esses 3 itens?",
+        f"Olá! Se você me mandar 2 fotos do local, eu monto um orçamento de {contexto} hoje ainda. Pode ser?",
+        f"Oi! Trabalho com {contexto}. Prefere algo mais econômico ou caprichado/premium? Eu te mando as duas opções.",
+        f"Olá! Só confirmando: é {contexto} para quando? Dependendo da urgência eu priorizo e te passo o valor certinho.",
+        f"Oi! Posso te enviar um orçamento completo de {contexto} com prazo, garantia e forma de pagamento. Me diga seu nome 🙂",
     ]
+
+    return msgs
 
 
 @router.get("", response_class=HTMLResponse)
@@ -35,19 +46,29 @@ def _build_messages(nicho: str, cidade: str, servico: str) -> list[str]:
 def acquisition_home(request: Request):
     return templates.TemplateResponse(
         "acquisition/acquisition.html",
-        {"request": request, "now": datetime.now(timezone.utc)},
+        {
+            "request": request,
+            "now": datetime.now(timezone.utc),
+            "form": {"nicho": "", "cidade": "", "servico": ""},
+            "messages": [],
+        },
     )
 
 
-@router.post("/generate", response_class=HTMLResponse)
+@router.post("/generate", response_class=HTMLResponse, name="acquisition_generate")
 def acquisition_generate(
     request: Request,
-    nicho: str = Form(...),
-    cidade: str = Form(...),
-    servico: str = Form(...),
+    nicho: str = Form(default=""),
+    cidade: str = Form(default=""),
+    servico: str = Form(default=""),
 ):
-    form = {"nicho": nicho, "cidade": cidade, "servico": servico}
-    messages = _build_messages(nicho, cidade, servico)
+    form: Dict[str, str] = {
+        "nicho": (nicho or "").strip(),
+        "cidade": (cidade or "").strip(),
+        "servico": (servico or "").strip(),
+    }
+
+    messages = _build_messages(form["nicho"], form["cidade"], form["servico"])
 
     return templates.TemplateResponse(
         "acquisition/acquisition.html",
