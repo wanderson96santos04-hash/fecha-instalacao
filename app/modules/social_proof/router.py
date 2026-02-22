@@ -41,7 +41,6 @@ def _format_money(valor: str) -> str:
     v = (valor or "").strip()
     if not v:
         return ""
-    # deixa como o usuário digitou, só ajusta espaçamento
     return v.replace("R$", "").strip()
 
 
@@ -68,6 +67,24 @@ def _build_testimonial(servico: str, valor: str, cidade: str, detalhe: str) -> s
     return "\n".join(parts).strip() + "\n"
 
 
+def _ctx_base(request: Request, user: User, flashes, form: dict, result: str):
+    """
+    Importante:
+    - O template social_proof.html usa a variável `result`
+    - Mantemos `result_text` também por compatibilidade, mas o principal é `result`
+    """
+    now = datetime.now(timezone.utc)
+    return {
+        "request": request,
+        "user": user,
+        "flashes": flashes,
+        "now": now,
+        "result": result,          # ✅ o template usa isso
+        "result_text": result,     # (opcional) compat
+        "form": form,
+    }
+
+
 @router.get("", response_class=HTMLResponse)
 def social_proof_page(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
@@ -75,14 +92,13 @@ def social_proof_page(request: Request, db: Session = Depends(get_db)):
 
     return templates.TemplateResponse(
         "social_proof/social_proof.html",
-        {
-            "request": request,
-            "user": user,
-            "flashes": flashes,
-            "now": datetime.now(timezone.utc),
-            "result_text": "",
-            "form": {"servico": "", "valor": "", "cidade": "", "detalhe": ""},
-        },
+        _ctx_base(
+            request=request,
+            user=user,
+            flashes=flashes,
+            form={"servico": "", "valor": "", "cidade": "", "detalhe": ""},
+            result="",
+        ),
     )
 
 
@@ -102,14 +118,13 @@ def social_proof_generate(
 
     return templates.TemplateResponse(
         "social_proof/social_proof.html",
-        {
-            "request": request,
-            "user": user,
-            "flashes": flashes,
-            "now": datetime.now(timezone.utc),
-            "result_text": text,
-            "form": {"servico": servico, "valor": valor, "cidade": cidade, "detalhe": detalhe},
-        },
+        _ctx_base(
+            request=request,
+            user=user,
+            flashes=flashes,
+            form={"servico": servico, "valor": valor, "cidade": cidade, "detalhe": detalhe},
+            result=text,
+        ),
     )
 
 
@@ -133,7 +148,7 @@ def social_proof_pdf(
     if not text.strip():
         return RedirectResponse(url="/app/social-proof", status_code=303)
 
-    # IMPORTA AQUI (não quebra o app no startup)
+    # Importa aqui (não quebra o app no startup)
     try:
         from reportlab.lib.pagesizes import A4
         from reportlab.pdfgen import canvas
@@ -146,7 +161,7 @@ def social_proof_pdf(
 
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
-    width, height = A4
+    width, height = A4  # noqa: F841
 
     c.setTitle("Prova Social - FECHA INSTALAÇÃO")
     c.setFont("Helvetica-Bold", 14)
