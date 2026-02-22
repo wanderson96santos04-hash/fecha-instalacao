@@ -1,7 +1,8 @@
 ﻿{% extends "base.html" %}
 
 {% block body %}
-{% set f = form|default({'nicho':'','cidade':'','servico':''}) %}
+{% set f = form|default({'nicho':'','cidade':'','servico':'','mode':'media'}) %}
+{% set m = (f.mode if f is defined and f.mode is defined else (mode|default('media'))) %}
 
 <main class="flex-1">
   <div class="max-w-6xl mx-auto px-4 py-10">
@@ -18,6 +19,9 @@
       <!-- FORM -->
       <section class="bg-white/80 backdrop-blur rounded-2xl shadow-lg border border-slate-200 p-6 md:p-7">
         <form method="post" action="/acquisition/generate" class="space-y-5">
+          <!-- se você usa CSRF, descomente e ajuste conforme seu projeto -->
+          {# <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> #}
+
           <div>
             <label class="block text-sm font-semibold text-slate-800 mb-2">Nicho</label>
             <input
@@ -60,7 +64,6 @@
               name="mode"
               class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600/30 focus:border-brand-600"
             >
-              {% set m = mode|default('media') %}
               <option value="curta" {% if m == 'curta' %}selected{% endif %}>Curta (direta)</option>
               <option value="media" {% if m == 'media' %}selected{% endif %}>Média (equilibrada)</option>
               <option value="agressiva" {% if m == 'agressiva' %}selected{% endif %}>Agressiva (foco em fechamento)</option>
@@ -90,7 +93,7 @@
         </div>
 
         {% if messages is defined and messages %}
-          <div class="mt-4 flex flex-wrap gap-2">
+          <div class="mt-4 flex flex-wrap items-center gap-2">
             <button
               id="copyAllBtn"
               type="button"
@@ -117,7 +120,7 @@
                   <button
                     type="button"
                     class="copyBtn inline-flex items-center gap-2 rounded-lg bg-slate-900 text-white px-3 py-1.5 text-sm font-semibold hover:bg-slate-800"
-                    data-message="{{ msg|replace('\r\n','\n')|replace('\r','\n') }}"
+                    data-message="{{ msg|e }}"
                   >
                     Copiar
                   </button>
@@ -170,21 +173,32 @@
       }
     };
 
+    // Copiar individual (pega o texto do card, mais seguro que data-attribute)
     document.querySelectorAll(".copyBtn").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const msg = btn.getAttribute("data-message") || "";
+        const card = btn.closest("article");
+        const msgEl = card ? card.querySelector(".whitespace-pre-line") : null;
+        const msg = msgEl ? (msgEl.innerText || "").trim() : "";
         safeCopy(msg);
       });
     });
 
+    // Copiar todas
     const copyAllBtn = document.getElementById("copyAllBtn");
     if (copyAllBtn) {
       copyAllBtn.addEventListener("click", () => {
-        const msgs = Array.from(document.querySelectorAll(".copyBtn"))
-          .map((b) => b.getAttribute("data-message") || "")
+        const cards = Array.from(document.querySelectorAll("#messagesWrap article"));
+        const msgs = cards
+          .map((card) => {
+            const msgEl = card.querySelector(".whitespace-pre-line");
+            return msgEl ? (msgEl.innerText || "").trim() : "";
+          })
           .filter(Boolean);
 
-        const text = msgs.map((m, i) => `Mensagem ${i + 1}\n${m}`).join("\n\n--------------------\n\n");
+        const text = msgs
+          .map((m, i) => `Mensagem ${i + 1}\n${m}`)
+          .join("\n\n--------------------\n\n");
+
         safeCopy(text);
       });
     }

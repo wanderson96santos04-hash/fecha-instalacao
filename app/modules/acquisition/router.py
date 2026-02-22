@@ -1,15 +1,33 @@
 ﻿from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Generator
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from app.db.session import get_db
 from app.models.user import User
+
+
+# =========================
+# DB dependency (compatível)
+# =========================
+try:
+    # Se o seu projeto já tiver get_db, usa ele
+    from app.db.session import get_db  # type: ignore
+except Exception:
+    # Se não tiver get_db, cria usando SessionLocal
+    from app.db.session import SessionLocal  # type: ignore
+
+    def get_db() -> Generator[Session, None, None]:
+        db = SessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+
 
 router = APIRouter(prefix="/acquisition", tags=["Acquisition"])
 templates = Jinja2Templates(directory="app/templates")
@@ -42,18 +60,13 @@ def _build_messages(nicho: str, cidade: str, servico: str) -> List[str]:
 
 def _get_logged_user(request: Request, db: Session) -> Optional[User]:
     """
-    Lê o usuário logado pela sessão.
-    Ajuste o nome da chave caso no seu login você salve diferente.
+    Pega o usuário logado pela sessão.
+    Ajuste a chave caso seu login salve com outro nome.
     """
     user_id = None
 
-    # jeito mais comum (Starlette SessionMiddleware)
     if hasattr(request, "session"):
-        user_id = request.session.get("user_id")
-
-    # fallback se você salva direto como "id"
-    if not user_id and hasattr(request, "session"):
-        user_id = request.session.get("id")
+        user_id = request.session.get("user_id") or request.session.get("id")
 
     if not user_id:
         return None
@@ -61,24 +74,14 @@ def _get_logged_user(request: Request, db: Session) -> Optional[User]:
     return db.query(User).filter(User.id == int(user_id)).first()
 
 
-def _require_login_and_pro(request: Request, db: Session) -> User:
-    user = _get_logged_user(request, db)
-    if not user:
-        return None  # tratado nas rotas com redirect
-
-    return user
-
-
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
 def acquisition_home(request: Request, db: Session = Depends(get_db)):
     user = _get_logged_user(request, db)
 
-    # Não logou? joga pro login
     if not user:
         return RedirectResponse(url="/login", status_code=302)
 
-    # Não é PRO? joga pro upgrade
     if not user.is_pro:
         return RedirectResponse(url="/app/upgrade", status_code=302)
 
@@ -89,6 +92,7 @@ def acquisition_home(request: Request, db: Session = Depends(get_db)):
             "now": datetime.now(timezone.utc),
             "form": {"nicho": "", "cidade": "", "servico": "", "mode": "media"},
             "messages": [],
+            "mode": "media",
         },
     )
 
