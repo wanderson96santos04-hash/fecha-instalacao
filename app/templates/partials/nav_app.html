@@ -8,7 +8,9 @@
       </div>
       <div>
         <div class="font-extrabold text-slate-900">FECHA INSTALAÇÃO</div>
-        <div class="text-xs text-slate-500">O jeito simples do instalador fechar mais serviço.</div>
+        <div class="text-xs text-slate-500">
+          O jeito simples do instalador fechar mais serviço.
+        </div>
       </div>
     </div>
 
@@ -20,6 +22,20 @@
          class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50">
         📋 Orçamentos
       </a>
+
+      <!-- Retenção (LIBERADO PARA TODOS) -->
+      {% if user and user.is_pro %}
+        <a href="/app/retention"
+           class="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100">
+          📊 Retenção
+          <span class="text-xs font-bold">PRO</span>
+        </a>
+      {% else %}
+        <a href="/app/retention"
+           class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50">
+          📊 Retenção
+        </a>
+      {% endif %}
 
       <!-- Aquisição (PRO Feature) -->
       {% if user and user.is_pro %}
