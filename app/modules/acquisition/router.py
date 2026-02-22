@@ -1,14 +1,14 @@
 ﻿from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Dict, List
+from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Form, Request, Depends
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from starlette.status import HTTP_302_FOUND
+from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user
+from app.db.session import get_db
 from app.models.user import User
 
 router = APIRouter(prefix="/acquisition", tags=["Acquisition"])
@@ -40,15 +40,47 @@ def _build_messages(nicho: str, cidade: str, servico: str) -> List[str]:
     ]
 
 
+def _get_logged_user(request: Request, db: Session) -> Optional[User]:
+    """
+    Lê o usuário logado pela sessão.
+    Ajuste o nome da chave caso no seu login você salve diferente.
+    """
+    user_id = None
+
+    # jeito mais comum (Starlette SessionMiddleware)
+    if hasattr(request, "session"):
+        user_id = request.session.get("user_id")
+
+    # fallback se você salva direto como "id"
+    if not user_id and hasattr(request, "session"):
+        user_id = request.session.get("id")
+
+    if not user_id:
+        return None
+
+    return db.query(User).filter(User.id == int(user_id)).first()
+
+
+def _require_login_and_pro(request: Request, db: Session) -> User:
+    user = _get_logged_user(request, db)
+    if not user:
+        return None  # tratado nas rotas com redirect
+
+    return user
+
+
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
-def acquisition_home(
-    request: Request,
-    current_user: User = Depends(get_current_user),
-):
-    # 🔒 BLOQUEIO PRO
-    if not current_user.is_pro:
-        return RedirectResponse("/app/upgrade", status_code=HTTP_302_FOUND)
+def acquisition_home(request: Request, db: Session = Depends(get_db)):
+    user = _get_logged_user(request, db)
+
+    # Não logou? joga pro login
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    # Não é PRO? joga pro upgrade
+    if not user.is_pro:
+        return RedirectResponse(url="/app/upgrade", status_code=302)
 
     return templates.TemplateResponse(
         "acquisition/acquisition.html",
@@ -61,24 +93,28 @@ def acquisition_home(
     )
 
 
-@router.post("/generate", response_class=HTMLResponse)
+@router.post("/generate", response_class=HTMLResponse, name="acquisition_generate")
 def acquisition_generate(
     request: Request,
+    db: Session = Depends(get_db),
     nicho: str = Form(default=""),
     cidade: str = Form(default=""),
     servico: str = Form(default=""),
     mode: str = Form(default="media"),
-    current_user: User = Depends(get_current_user),
 ):
-    # 🔒 BLOQUEIO PRO
-    if not current_user.is_pro:
-        return RedirectResponse("/app/upgrade", status_code=HTTP_302_FOUND)
+    user = _get_logged_user(request, db)
+
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    if not user.is_pro:
+        return RedirectResponse(url="/app/upgrade", status_code=302)
 
     form: Dict[str, str] = {
         "nicho": (nicho or "").strip(),
         "cidade": (cidade or "").strip(),
         "servico": (servico or "").strip(),
-        "mode": mode,
+        "mode": (mode or "media").strip(),
     }
 
     messages = _build_messages(form["nicho"], form["cidade"], form["servico"])
@@ -90,6 +126,6 @@ def acquisition_generate(
             "now": datetime.now(timezone.utc),
             "form": form,
             "messages": messages,
-            "mode": mode,
+            "mode": form["mode"],
         },
     )
