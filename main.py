@@ -66,6 +66,12 @@ try:
     app.include_router(acquisition_router)
 except Exception as e:
     print(f"[modules] Acquisition router NOT loaded: {e}")
+# ✅ MÓDULO RETENÇÃO (opcional e seguro)
+try:
+    from app.modules.retention.router import router as retention_router
+    app.include_router(retention_router)
+except Exception as e:
+    print(f"[modules] Retention router NOT loaded: {e}")
 
 
 @app.exception_handler(401)

@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block body %}
+
+{% include "partials/nav_app.html" %}
+
+<main class="flex-1">
+  <div class="max-w-6xl mx-auto px-4 py-10">
+
+    <header class="mb-8">
+      <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+        Módulo de Retenção
+      </h1>
+      <p class="mt-2 text-slate-600 text-lg">
+        Relatório semanal automático (últimos 7 dias) com métricas e texto pronto pra compartilhar.
+      </p>
+    </header>
+
+    <section class="bg-white/80 backdrop-blur rounded-2xl shadow-lg border border-slate-200 p-6 md:p-7">
+      <div class="flex items-center justify-between gap-4 flex-wrap">
+        <div class="text-sm text-slate-500">
+          Período: <b class="text-slate-700">{{ start.strftime("%d/%m/%Y") }}</b> até
+          <b class="text-slate-700">{{ now.strftime("%d/%m/%Y") }}</b>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button
+            id="copyReportBtn"
+            type="button"
+            class="inline-flex items-center gap-2 rounded-lg bg-slate-900 text-white px-3 py-2 text-sm font-semibold hover:bg-slate-800"
+          >
+            Copiar relatório
+          </button>
+          <span id="toast" class="hidden text-sm font-semibold text-green-600">Copiado ✔</span>
+        </div>
+      </div>
+
+      <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="rounded-2xl border border-slate-200 bg-white p-5">
+          <div class="text-xs font-semibold text-slate-500">ORÇAMENTOS CRIADOS</div>
+          <div class="mt-2 text-3xl font-extrabold text-slate-900">{{ created_count }}</div>
+          <div class="mt-1 text-sm text-slate-500">últimos 7 dias</div>
+        </div>
+
+        <div class="rounded-2xl border border-slate-200 bg-white p-5">
+          <div class="text-xs font-semibold text-slate-500">ORÇAMENTOS FECHADOS</div>
+          <div class="mt-2 text-3xl font-extrabold text-slate-900">{{ closed_count }}</div>
+          <div class="mt-1 text-sm text-slate-500">últimos 7 dias</div>
+        </div>
+
+        <div class="rounded-2xl border border-slate-200 bg-white p-5">
+          <div class="text-xs font-semibold text-slate-500">TAXA DE CONVERSÃO</div>
+          <div class="mt-2 text-3xl font-extrabold text-slate-900">{{ "%.1f"|format(conversion) }}%</div>
+          <div class="mt-1 text-sm text-slate-500">fechados / criados</div>
+        </div>
+      </div>
+
+      <div class="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
+        <div class="flex items-center justify-between gap-3 mb-3">
+          <div class="text-sm font-extrabold text-slate-900">Relatório em texto</div>
+          <div class="text-xs text-slate-500">Pronto pra enviar</div>
+        </div>
+
+        <pre id="reportText" class="whitespace-pre-wrap text-slate-900 leading-relaxed font-medium text-sm">{{ report_text }}</pre>
+
+        <p class="mt-4 text-xs text-slate-400">
+          Dica: copie e cole no WhatsApp (grupo da equipe, parceiro, ou até pra você mesmo como controle).
+        </p>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+  (function () {
+    const toast = document.getElementById("toast");
+    const showToast = () => {
+      if (!toast) return;
+      toast.classList.remove("hidden");
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => toast.classList.add("hidden"), 1200);
+    };
+
+    const safeCopy = async (text) => {
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast();
+      } catch (e) {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        showToast();
+      }
+    };
+
+    const btn = document.getElementById("copyReportBtn");
+    const pre = document.getElementById("reportText");
+
+    if (btn && pre) {
+      btn.addEventListener("click", () => safeCopy(pre.innerText || ""));
+    }
+  })();
+</script>
+
+{% endblock %}
