@@ -41,6 +41,18 @@
         📊 Retenção
       </a>
 
+      <!-- 🔥 Prova Social (Marketing) -->
+      <a href="/app/social-proof"
+         class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition
+         {% if path.startswith('/app/social-proof') %}
+            bg-yellow-500 text-white shadow-md
+         {% else %}
+            border border-yellow-200 bg-yellow-50 text-yellow-700 hover:bg-yellow-100
+         {% endif %}">
+        🔥 Prova Social
+        <span class="text-xs font-bold">Marketing</span>
+      </a>
+
       <!-- Aquisição (PRO Feature) -->
       {% if user and user.is_pro %}
         <a href="/acquisition"
