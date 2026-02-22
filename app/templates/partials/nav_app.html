@@ -1,39 +1,56 @@
-<nav class="sticky top-0 z-40 border-b border-slate-200 bg-white/80 backdrop-blur">
-  <div class="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between gap-3">
+<nav class="w-full border-b border-slate-200 bg-white/80 backdrop-blur">
+  <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+
+    <!-- Logo -->
     <div class="flex items-center gap-3">
-      <div class="h-10 w-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-sm">
+      <div class="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white">
         🔥
       </div>
-      <div class="leading-tight">
-        <div class="font-extrabold tracking-tight">FECHA INSTALAÇÃO</div>
-        <div class="text-xs text-slate-500 -mt-0.5">O jeito simples do instalador fechar mais serviço.</div>
+      <div>
+        <div class="font-extrabold text-slate-900">FECHA INSTALAÇÃO</div>
+        <div class="text-xs text-slate-500">O jeito simples do instalador fechar mais serviço.</div>
       </div>
     </div>
 
-    <div class="flex items-center gap-2">
+    <!-- Menu -->
+    <div class="flex items-center gap-3">
+
+      <!-- Orçamentos -->
       <a href="/app"
-         class="hidden sm:inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-extrabold border border-slate-200 bg-white hover:bg-slate-50">
-        Orçamentos
+         class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50">
+        📋 Orçamentos
       </a>
 
-      {% if user.is_pro %}
-        <a href="/app/reports"
-           class="hidden sm:inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-extrabold border border-slate-200 bg-white hover:bg-slate-50">
-          Relatórios <span class="text-xs">💎</span>
+      <!-- Aquisição (PRO Feature) -->
+      {% if user and user.is_pro %}
+        <a href="/acquisition"
+           class="inline-flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700 hover:bg-green-100">
+          🚀 Aquisição
+          <span class="text-xs font-bold">PRO</span>
         </a>
-      {% endif %}
-
-      {% if not user.is_pro %}
+      {% else %}
         <a href="/app/upgrade"
-           class="hidden sm:inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-extrabold text-white bg-slate-900 hover:bg-slate-800 shadow-sm">
-          Virar Premium
+           class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-50"
+           title="Disponível apenas no Plano Pro">
+          🔒 Aquisição
+          <span class="text-xs font-bold text-orange-600">PRO</span>
         </a>
       {% endif %}
 
+      <!-- Virar Premium -->
+      {% if not user or not user.is_pro %}
+        <a href="/app/upgrade"
+           class="inline-flex items-center gap-2 rounded-xl bg-slate-900 text-white px-4 py-2 text-sm font-semibold hover:bg-slate-800">
+          💎 Virar Premium
+        </a>
+      {% endif %}
+
+      <!-- Sair -->
       <a href="/logout"
-         class="inline-flex items-center justify-center rounded-2xl px-4 py-2 text-sm font-extrabold bg-white border border-slate-200 hover:bg-slate-50">
-        Sair
+         class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50">
+        🚪 Sair
       </a>
+
     </div>
   </div>
 </nav>
