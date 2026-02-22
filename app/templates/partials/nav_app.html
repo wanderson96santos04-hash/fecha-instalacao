@@ -17,30 +17,39 @@
     <!-- Menu -->
     <div class="flex items-center gap-3">
 
+      {% set path = request.url.path %}
+
       <!-- Orçamentos -->
       <a href="/app"
-         class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50">
+         class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition
+         {% if path == '/app' %}
+            bg-slate-900 text-white shadow-md
+         {% else %}
+            border border-slate-200 bg-white text-slate-900 hover:bg-slate-50
+         {% endif %}">
         📋 Orçamentos
       </a>
 
-      <!-- Retenção (LIBERADO PARA TODOS) -->
-      {% if user and user.is_pro %}
-        <a href="/app/retention"
-           class="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100">
-          📊 Retenção
-          <span class="text-xs font-bold">PRO</span>
-        </a>
-      {% else %}
-        <a href="/app/retention"
-           class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50">
-          📊 Retenção
-        </a>
-      {% endif %}
+      <!-- Retenção -->
+      <a href="/app/retention"
+         class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition
+         {% if path.startswith('/app/retention') %}
+            bg-slate-900 text-white shadow-md
+         {% else %}
+            border border-slate-200 bg-white text-slate-900 hover:bg-slate-50
+         {% endif %}">
+        📊 Retenção
+      </a>
 
       <!-- Aquisição (PRO Feature) -->
       {% if user and user.is_pro %}
         <a href="/acquisition"
-           class="inline-flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700 hover:bg-green-100">
+           class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition
+           {% if path.startswith('/acquisition') %}
+              bg-green-600 text-white shadow-md
+           {% else %}
+              border border-green-200 bg-green-50 text-green-700 hover:bg-green-100
+           {% endif %}">
           🚀 Aquisição
           <span class="text-xs font-bold">PRO</span>
         </a>
@@ -56,7 +65,7 @@
       <!-- Virar Premium -->
       {% if not user or not user.is_pro %}
         <a href="/app/upgrade"
-           class="inline-flex items-center gap-2 rounded-xl bg-slate-900 text-white px-4 py-2 text-sm font-semibold hover:bg-slate-800">
+           class="inline-flex items-center gap-2 rounded-xl bg-slate-900 text-white px-4 py-2 text-sm font-semibold hover:bg-slate-800 transition">
           💎 Virar Premium
         </a>
       {% endif %}
