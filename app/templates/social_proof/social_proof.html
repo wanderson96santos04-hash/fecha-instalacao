@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% block body %}
+
+{% include "partials/nav_app.html" ignore missing %}
+
+{% set f = form|default({'servico':'','valor':'','cidade':'','detalhe':''}) %}
+
+<main class="flex-1">
+  <div class="max-w-6xl mx-auto px-4 py-10">
+
+    <header class="mb-8">
+      <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+        Módulo de Prova Social
+      </h1>
+      <p class="mt-2 text-slate-600 text-lg">
+        Gere depoimentos prontos para postar — e exporte em PDF/PPT (PRO).
+      </p>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+
+      <!-- FORM -->
+      <section class="bg-white/80 backdrop-blur rounded-2xl shadow-lg border border-slate-200 p-6 md:p-7">
+        <form method="post" action="/app/social-proof/generate" class="space-y-5">
+          <div>
+            <label class="block text-sm font-semibold text-slate-800 mb-2">Serviço fechado</label>
+            <input
+              name="servico"
+              value="{{ f.servico|default('') }}"
+              class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600/30 focus:border-brand-600"
+              placeholder="Ex: Instalação elétrica, Energia solar, Cerca elétrica..."
+              required
+            />
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-semibold text-slate-800 mb-2">Valor fechado</label>
+              <input
+                name="valor"
+                value="{{ f.valor|default('') }}"
+                class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600/30 focus:border-brand-600"
+                placeholder="Ex: 3500 ou 3.500,00"
+                required
+              />
+            </div>
+
+            <div>
+              <label class="block text-sm font-semibold text-slate-800 mb-2">Cidade</label>
+              <input
+                name="cidade"
+                value="{{ f.cidade|default('') }}"
+                class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600/30 focus:border-brand-600"
+                placeholder="Ex: Belo Horizonte"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-slate-800 mb-2">Detalhe (opcional)</label>
+            <input
+              name="detalhe"
+              value="{{ f.detalhe|default('') }}"
+              class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600/30 focus:border-brand-600"
+              placeholder="Ex: Cliente elogiou a rapidez e acabamento"
+            />
+          </div>
+
+          <button
+            type="submit"
+            class="w-full rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold py-3.5 shadow-md shadow-brand-600/20 transition"
+          >
+            Gerar prova social
+          </button>
+        </form>
+      </section>
+
+      <!-- RESULT -->
+      <section class="bg-white/80 backdrop-blur rounded-2xl shadow-lg border border-slate-200 p-6 md:p-7">
+        <div class="flex items-center justify-between gap-4 flex-wrap">
+          <h2 class="text-xl font-extrabold text-slate-900">Resultado</h2>
+
+          {% if result_text %}
+            <div class="flex items-center gap-2">
+              <button
+                id="copyBtn"
+                type="button"
+                class="inline-flex items-center gap-2 rounded-lg bg-slate-900 text-white px-3 py-2 text-sm font-semibold hover:bg-slate-800"
+              >
+                Copiar
+              </button>
+              <span id="toast" class="hidden text-sm font-semibold text-green-600">Copiado ✔</span>
+            </div>
+          {% endif %}
+        </div>
+
+        {% if result_text %}
+          <!-- Preview estilo story -->
+          <div class="mt-5 rounded-2xl overflow-hidden border border-slate-200">
+            <div class="p-6 bg-slate-950 text-white relative">
+              <div class="absolute -top-10 -right-10 w-48 h-48 bg-orange-500/20 blur-3xl rounded-full"></div>
+
+              <div class="text-xs font-bold opacity-70">FECHA INSTALAÇÃO</div>
+              <div class="mt-3 text-2xl font-extrabold">🔥 SERVIÇO FECHADO</div>
+
+              <div class="mt-4 text-base font-semibold opacity-95 whitespace-pre-line" id="resultText">{{ result_text }}</div>
+            </div>
+          </div>
+
+          <!-- Export (PRO) -->
+          <div class="mt-4 flex flex-wrap gap-2 items-center">
+            {% if is_pro %}
+              <form method="post" action="/app/social-proof/export/pdf">
+                <input type="hidden" name="servico" value="{{ f.servico|e }}">
+                <input type="hidden" name="valor" value="{{ f.valor|e }}">
+                <input type="hidden" name="cidade" value="{{ f.cidade|e }}">
+                <input type="hidden" name="detalhe" value="{{ f.detalhe|e }}">
+                <button
+                  type="submit"
+                  class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+                >
+                  📄 Exportar PDF
+                </button>
+              </form>
+
+              <form method="post" action="/app/social-proof/export/pptx">
+                <input type="hidden" name="servico" value="{{ f.servico|e }}">
+                <input type="hidden" name="valor" value="{{ f.valor|e }}">
+                <input type="hidden" name="cidade" value="{{ f.cidade|e }}">
+                <input type="hidden" name="detalhe" value="{{ f.detalhe|e }}">
+                <button
+                  type="submit"
+                  class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+                >
+                  📊 Exportar PowerPoint
+                </button>
+              </form>
+
+              <span class="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-lg">
+                PRO liberado
+              </span>
+            {% else %}
+              <a href="/app/upgrade"
+                 class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-50"
+                 title="Exportação disponível apenas no Plano Pro">
+                🔒 Exportar PDF (PRO)
+              </a>
+
+              <a href="/app/upgrade"
+                 class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-50"
+                 title="Exportação disponível apenas no Plano Pro">
+                🔒 Exportar PowerPoint (PRO)
+              </a>
+            {% endif %}
+          </div>
+
+          <p class="mt-4 text-xs text-slate-400">
+            Dica: copie e poste no Status/Story. Se você fechar 1 por semana usando prova social, o SaaS se paga sozinho.
+          </p>
+        {% else %}
+          <p class="mt-4 text-slate-600">
+            Preencha o formulário e clique em <b>Gerar prova social</b>.
+          </p>
+        {% endif %}
+      </section>
+
+    </div>
+  </div>
+</main>
+
+<script>
+  (function () {
+    const toast = document.getElementById("toast");
+    const showToast = () => {
+      if (!toast) return;
+      toast.classList.remove("hidden");
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => toast.classList.add("hidden"), 1200);
+    };
+
+    const safeCopy = async (text) => {
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast();
+      } catch (e) {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        showToast();
+      }
+    };
+
+    const btn = document.getElementById("copyBtn");
+    const txt = document.getElementById("resultText");
+    if (btn && txt) {
+      btn.addEventListener("click", () => safeCopy(txt.innerText || ""));
+    }
+  })();
+</script>
+
+{% endblock %}

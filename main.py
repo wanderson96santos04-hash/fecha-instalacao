@@ -72,6 +72,12 @@ try:
     app.include_router(retention_router)
 except Exception as e:
     print(f"[modules] Retention router NOT loaded: {e}")
+# ✅ MÓDULO PROVA SOCIAL (opcional e seguro)
+try:
+    from app.modules.social_proof.router import router as social_proof_router
+    app.include_router(social_proof_router)
+except Exception as e:
+    print(f"[modules] SocialProof router NOT loaded: {e}")
 
 
 @app.exception_handler(401)
