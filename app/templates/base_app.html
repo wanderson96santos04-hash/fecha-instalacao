@@ -4,6 +4,8 @@
 
   {% include "partials/nav_app.html" %}
 
+  {{ (request.state.premium_banner_html or "") | safe }}
+
   <main class="flex-1">
     {% block content %}{% endblock %}
   </main>

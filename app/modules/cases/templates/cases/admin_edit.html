@@ -1,0 +1,40 @@
+{% extends "base_app.html" %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto p-4">
+  <h1 class="text-2xl font-bold mb-4">Editar depoimento</h1>
+
+  <form method="post" action="/app/cases/admin/{{ t.id }}/edit" class="space-y-3">
+    <div>
+      <label class="block text-sm text-slate-600">Nome</label>
+      <input class="w-full border rounded-xl px-3 py-2" name="name" value="{{ t.name }}" required>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm text-slate-600">Cidade</label>
+        <input class="w-full border rounded-xl px-3 py-2" name="city" value="{{ t.city }}">
+      </div>
+      <div>
+        <label class="block text-sm text-slate-600">Serviço</label>
+        <input class="w-full border rounded-xl px-3 py-2" name="service" value="{{ t.service }}">
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-sm text-slate-600">Valor</label>
+      <input class="w-full border rounded-xl px-3 py-2" name="value" value="{{ t.value }}">
+    </div>
+
+    <div>
+      <label class="block text-sm text-slate-600">Frase</label>
+      <textarea class="w-full border rounded-xl p-3" rows="4" name="quote" required>{{ t.quote }}</textarea>
+    </div>
+
+    <div class="flex gap-2">
+      <button class="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold" type="submit">Salvar</button>
+      <a class="px-4 py-2 rounded-xl border text-sm font-semibold" href="/app/cases/admin">Voltar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

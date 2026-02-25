@@ -37,5 +37,46 @@ ALTER TABLE budgets
 ALTER TABLE budgets
   ADD CONSTRAINT chk_budgets_status
   CHECK (status IN ('awaiting', 'won', 'lost'));
+-- =========================================
+-- ONBOARDING EVENTS
+-- =========================================
+CREATE TABLE IF NOT EXISTS onboarding_events (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  event TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_onboarding_events_user_event
+  ON onboarding_events (user_id, event);
+
+
+-- =========================================
+-- INVITE / REFERRAL
+-- =========================================
+CREATE TABLE IF NOT EXISTS invite_referrals (
+  user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  code TEXT NOT NULL UNIQUE,
+  copy_count INTEGER NOT NULL DEFAULT 0,
+  click_count INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+
+-- =========================================
+-- TESTIMONIALS
+-- =========================================
+CREATE TABLE IF NOT EXISTS testimonials (
+  id BIGSERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  city TEXT NOT NULL DEFAULT '',
+  service TEXT NOT NULL DEFAULT '',
+  value TEXT NOT NULL DEFAULT '',
+  quote TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_testimonials_created_at
+  ON testimonials (created_at DESC);
 
 COMMIT;

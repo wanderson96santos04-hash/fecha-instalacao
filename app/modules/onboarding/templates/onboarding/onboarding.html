@@ -1,0 +1,91 @@
+{% extends "base_app.html" %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto p-4">
+  <h1 class="text-2xl font-bold mb-2">Bem-vindo! Vamos destravar seu 1º resultado 🚀</h1>
+  <p class="text-slate-600 mb-6">Complete 3 passos e feche seu primeiro serviço hoje mesmo.</p>
+
+  {% set done = (1 if state.step1_done else 0) + (1 if state.step2_done else 0) + (1 if state.step3_done else 0) %}
+  {% set pct = (done * 100) // 3 %}
+
+  <div class="w-full bg-slate-200 rounded-full h-3 mb-6">
+    <div class="bg-green-600 h-3 rounded-full" style="width: {{ pct }}%"></div>
+  </div>
+
+  {% if state.completed %}
+    <div class="p-4 rounded-xl border bg-green-50 mb-6">
+      <div class="text-lg font-semibold">Parabéns! 🎉</div>
+      <div class="text-slate-700">Você completou o onboarding e está pronto pra fechar mais serviços.</div>
+    </div>
+    <a href="/app/budgets/new" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 text-white px-4 py-2 text-sm font-semibold hover:bg-slate-800 transition">
+      ➕ Criar novo orçamento
+    </a>
+  {% else %}
+    <ol class="space-y-4">
+      <li class="p-4 rounded-xl border">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <div class="font-semibold">1) Criar seu primeiro orçamento</div>
+            <div class="text-slate-600 text-sm">Usa o fluxo existente (sem duplicar lógica).</div>
+          </div>
+          {% if state.step1_done %}
+            <span class="text-green-700 font-semibold">Concluído ✓</span>
+          {% else %}
+            <a class="px-3 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold" href="/app/budgets/new">Criar agora</a>
+          {% endif %}
+        </div>
+      </li>
+
+      <li class="p-4 rounded-xl border">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <div class="font-semibold">2) Enviar no WhatsApp</div>
+            <div class="text-slate-600 text-sm">Aciona a funcionalidade existente de WhatsApp.</div>
+          </div>
+
+          {% if state.step2_done %}
+            <span class="text-green-700 font-semibold">Concluído ✓</span>
+          {% else %}
+            {% if state.target_budget_id %}
+              <!-- ✅ Agora registra o evento e redireciona pro WhatsApp -->
+              <form method="post" action="/app/onboarding/whatsapp/{{ state.target_budget_id }}">
+                <button class="px-3 py-2 rounded-xl bg-green-600 text-white text-sm font-semibold" type="submit">
+                  Enviar
+                </button>
+              </form>
+            {% else %}
+              <span class="text-slate-500 text-sm">Crie um orçamento primeiro</span>
+            {% endif %}
+          {% endif %}
+        </div>
+      </li>
+
+      <li class="p-4 rounded-xl border">
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex-1">
+            <div class="font-semibold">3) Marcar status</div>
+            <div class="text-slate-600 text-sm">Aguardando / Fechado / Perdido (endpoint existente).</div>
+          </div>
+
+          {% if state.step3_done %}
+            <span class="text-green-700 font-semibold">Concluído ✓</span>
+          {% else %}
+            {% if state.target_budget_id %}
+              <form class="flex items-center gap-2" method="post" action="/app/budgets/{{ state.target_budget_id }}/status">
+                <select name="status" class="border rounded-xl px-2 py-2 text-sm">
+                  <option value="awaiting">Aguardando</option>
+                  <option value="won">Fechado</option>
+                  <option value="lost">Perdido</option>
+                </select>
+                <button class="px-3 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold" type="submit">Salvar</button>
+              </form>
+            {% else %}
+              <span class="text-slate-500 text-sm">Crie um orçamento primeiro</span>
+            {% endif %}
+          {% endif %}
+        </div>
+      </li>
+    </ol>
+  {% endif %}
+</div>
+{% endblock %}

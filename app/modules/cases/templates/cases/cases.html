@@ -1,0 +1,27 @@
+{% extends "base_app.html" %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto p-4">
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-2xl font-bold">Prova real / Depoimentos</h1>
+    <a class="px-4 py-2 rounded-xl border text-sm font-semibold" href="/app/cases/admin">Admin</a>
+  </div>
+
+  {% if not items %}
+    <p class="text-slate-600">Ainda não há depoimentos cadastrados.</p>
+  {% else %}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {% for t in items %}
+        <div class="rounded-xl border p-4 bg-white">
+          <div class="font-semibold">{{ t.name }} — {{ t.city }}</div>
+          <div class="text-sm text-slate-600">{{ t.service }} • {{ t.value }}</div>
+          <div class="mt-3 text-slate-800">“{{ t.quote }}”</div>
+          <div class="mt-4">
+            <a class="text-sm underline" href="/app/cases/{{ t.id }}/export">Exportar</a>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

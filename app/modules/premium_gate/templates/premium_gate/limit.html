@@ -1,0 +1,23 @@
+{% extends "base_app.html" %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto p-4">
+  <h1 class="text-2xl font-bold mb-2">Limite do plano Free</h1>
+
+  {% if info.is_pro %}
+    <p class="text-slate-700">Você já é Premium. ✅</p>
+    <a class="inline-flex mt-4 items-center gap-2 rounded-xl bg-slate-900 text-white px-4 py-2 text-sm font-semibold" href="/app">Voltar ao dashboard</a>
+  {% else %}
+    <div class="p-4 rounded-xl border bg-red-50">
+      <div class="font-semibold">Você atingiu o limite ({{ info.limit }}).</div>
+      <div class="text-slate-700 mt-1">
+        Para continuar criando orçamentos e não perder clientes, faça upgrade para Premium.
+      </div>
+      <div class="mt-4 flex gap-2">
+        <a class="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold" href="/app/upgrade">Ver Premium</a>
+        <a class="px-4 py-2 rounded-xl border text-sm font-semibold" href="/app/checkout">Fazer upgrade</a>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

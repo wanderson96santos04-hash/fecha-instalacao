@@ -14,7 +14,7 @@ from app.routes.app import router as app_router
 from app.routes.webhook import router as webhook_router
 
 app = FastAPI(title="FECHA INSTALAÇÃO", version="0.1.0")
-print(">>> MAIN.PY LOADED (commit c0a53a3)")
+print(">>> MAIN.PY LOADED (with premium_gate + modules)")
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
@@ -36,6 +36,57 @@ async def flash_middleware(request: Request, call_next):
     return response
 
 
+# ✅ PREMIUM GATE MIDDLEWARE (banner + bloqueio no limite) — isolado e seguro (fail-open)
+try:
+    from app.core.deps import get_user_id_from_request
+    from app.modules.premium_gate.services import get_gate_info, render_banner_html
+    from jinja2 import ChoiceLoader, FileSystemLoader
+
+    premium_templates = Jinja2Templates(directory="app/templates")
+    premium_templates.env.loader = ChoiceLoader([  # type: ignore[attr-defined]
+        premium_templates.env.loader,
+        FileSystemLoader("app/modules/premium_gate/templates"),
+    ])
+
+    @app.middleware("http")
+    async def premium_gate_middleware(request: Request, call_next):
+        # default seguro: não renderiza nada
+        request.state.premium_banner_html = ""
+
+        # só faz sentido dentro do app logado
+        if not request.url.path.startswith("/app"):
+            return await call_next(request)
+
+        try:
+            uid_raw = get_user_id_from_request(request)
+            if uid_raw:
+                uid = int(uid_raw)
+
+                info = get_gate_info(uid)
+                request.state.premium_banner_html = render_banner_html(info)
+
+                # bloqueio forte: intercepta criação quando no limite
+                if (
+                    (not info.is_pro)
+                    and info.at_limit
+                    and request.url.path == "/app/budgets/new"
+                    and request.method.upper() == "POST"
+                ):
+                    return premium_templates.TemplateResponse(
+                        "premium_gate/limit.html",
+                        {"request": request, "flashes": [], "user": None, "info": info},
+                        status_code=403,
+                    )
+        except Exception:
+            # fail-open: nunca quebra o core
+            request.state.premium_banner_html = ""
+
+        return await call_next(request)
+
+except Exception as e:
+    print(f"[modules] PremiumGate middleware NOT loaded: {e}")
+
+
 @app.get("/", response_class=HTMLResponse)
 def landing(request: Request):
     flashes = pop_flashes(request)
@@ -55,29 +106,59 @@ def health():
     return {"ok": True, "app": "fecha-instalacao"}
 
 
+# ===== ROUTERS DO CORE =====
 app.include_router(auth_router)
 app.include_router(app_router)
 app.include_router(webhook_router)
 
-# ✅ MÓDULOS ISOLADOS (opcional e seguro)
-# Se o módulo ainda não existir/estiver pronto, não quebra nada.
+# ===== MÓDULOS EXISTENTES (opcionais e seguros) =====
+
+# ✅ MÓDULO AQUISIÇÃO (opcional e seguro)
 try:
-    from app.modules.acquisition.router import router as acquisition_router  # novo módulo FastAPI
+    from app.modules.acquisition.router import router as acquisition_router
     app.include_router(acquisition_router)
 except Exception as e:
     print(f"[modules] Acquisition router NOT loaded: {e}")
+
 # ✅ MÓDULO RETENÇÃO (opcional e seguro)
 try:
     from app.modules.retention.router import router as retention_router
     app.include_router(retention_router)
 except Exception as e:
     print(f"[modules] Retention router NOT loaded: {e}")
+
 # ✅ MÓDULO PROVA SOCIAL (opcional e seguro)
 try:
     from app.modules.social_proof.router import router as social_proof_router
     app.include_router(social_proof_router)
 except Exception as e:
     print(f"[modules] SocialProof router NOT loaded: {e}")
+
+# ===== NOVOS MÓDULOS (opcionais e seguros) =====
+
+try:
+    from app.modules.onboarding.router import router as onboarding_router
+    app.include_router(onboarding_router)
+except Exception as e:
+    print(f"[modules] Onboarding router NOT loaded: {e}")
+
+try:
+    from app.modules.invite.router import router as invite_router
+    app.include_router(invite_router)
+except Exception as e:
+    print(f"[modules] Invite router NOT loaded: {e}")
+
+try:
+    from app.modules.premium_gate.router import router as premium_gate_router
+    app.include_router(premium_gate_router)
+except Exception as e:
+    print(f"[modules] PremiumGate router NOT loaded: {e}")
+
+try:
+    from app.modules.cases.router import router as cases_router
+    app.include_router(cases_router)
+except Exception as e:
+    print(f"[modules] Cases router NOT loaded: {e}")
 
 
 @app.exception_handler(401)

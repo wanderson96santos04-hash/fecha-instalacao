@@ -30,6 +30,28 @@
         📋 Orçamentos
       </a>
 
+      <!-- ✅ NOVO: Onboarding -->
+      <a href="/app/onboarding"
+         class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition
+         {% if path.startswith('/app/onboarding') %}
+            bg-slate-900 text-white shadow-md
+         {% else %}
+            border border-slate-200 bg-white text-slate-900 hover:bg-slate-50
+         {% endif %}">
+        ✨ Onboarding
+      </a>
+
+      <!-- ✅ NOVO: Invite -->
+      <a href="/app/invite"
+         class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition
+         {% if path.startswith('/app/invite') %}
+            bg-slate-900 text-white shadow-md
+         {% else %}
+            border border-slate-200 bg-white text-slate-900 hover:bg-slate-50
+         {% endif %}">
+        🔗 Indique
+      </a>
+
       <!-- Retenção -->
       <a href="/app/retention"
          class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition
@@ -39,6 +61,17 @@
             border border-slate-200 bg-white text-slate-900 hover:bg-slate-50
          {% endif %}">
         📊 Retenção
+      </a>
+
+      <!-- ✅ NOVO: Depoimentos -->
+      <a href="/app/cases"
+         class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition
+         {% if path.startswith('/app/cases') %}
+            bg-slate-900 text-white shadow-md
+         {% else %}
+            border border-slate-200 bg-white text-slate-900 hover:bg-slate-50
+         {% endif %}">
+        ⭐ Depoimentos
       </a>
 
       <!-- 📣 Marketing (Prova Social) -->
