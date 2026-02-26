@@ -40,27 +40,52 @@ def _require_user(request: Request) -> int:
 def _parse_brl_value(value: str) -> float:
     """
     Converte strings tipo:
-      "R$ 1.000" / "1000" / "1.000,50" / "1000,50"
-    para float.
+      "R$ 1.000" / "1000" / "1.000,50" / "1000,50" / "2500" / "2.500"
+    para float (em reais).
+
+    ✅ Corrige o bug clássico:
+      "1.000" não pode virar 1.0 (float), tem que virar 1000.0
     """
     if not value:
         return 0.0
-    s = value.strip()
 
-    # remove tudo que não for número, ponto ou vírgula
-    s = re.sub(r"[^0-9\.,]", "", s)
-
+    s = str(value).strip()
     if not s:
         return 0.0
 
-    # se tem vírgula e ponto, assume formato BR: 1.234,56
-    if "," in s and "." in s:
-        s = s.replace(".", "").replace(",", ".")
-    else:
-        # se só tem vírgula, vira decimal
-        if "," in s:
-            s = s.replace(",", ".")
+    # remove tudo que não for número, ponto ou vírgula
+    s = re.sub(r"[^0-9\.,]", "", s)
+    if not s:
+        return 0.0
 
+    # Caso 1: tem vírgula -> vírgula é decimal no BR (remove pontos de milhar)
+    if "," in s:
+        s = s.replace(".", "").replace(",", ".")
+        try:
+            return float(s)
+        except Exception:
+            return 0.0
+
+    # Caso 2: não tem vírgula, mas tem ponto.
+    # Aqui o mais comum no BR é ponto como milhar: "1.000" / "2.500" -> remover pontos.
+    if "." in s:
+        # se parecer decimal (termina com .00, .50 etc), deixa como decimal
+        # senão, trata como milhar
+        parts = s.split(".")
+        if len(parts) == 2 and len(parts[1]) in (1, 2):
+            # exemplo: "1000.5" ou "1000.50"
+            try:
+                return float(s)
+            except Exception:
+                return 0.0
+
+        s = s.replace(".", "")
+        try:
+            return float(s)
+        except Exception:
+            return 0.0
+
+    # Caso 3: só número
     try:
         return float(s)
     except Exception:
@@ -136,6 +161,11 @@ def dashboard(request: Request):
             "month_lost_count": len(lost),
             "month_conversion_pct": f"{conversion_pct:.0f}%",
             "month_total_count": len(month_budgets),
+
+            # ✅ bate com seu dashboard.html ({{ metrics.month_awaiting }})
+            "month_awaiting": len(awaiting),
+
+            # (opcional) compat caso algum template antigo use isso
             "month_awaiting_count": len(awaiting),
         }
 
