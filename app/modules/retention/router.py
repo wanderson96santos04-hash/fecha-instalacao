@@ -1,33 +1,44 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Optional
+from typing import Dict, Tuple
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
+from app.core.deps import get_user_id_from_request, pop_flashes
 from app.db.session import SessionLocal
 from app.models.user import User
+from app.models.budget import Budget  # no seu projeto é esse
 
-# tenta importar seu model de orçamento com alguns nomes comuns
-BUDGET_MODEL = None
-try:
-    from app.models.budget import Budget  # type: ignore
-    BUDGET_MODEL = Budget
-except Exception:
-    try:
-        from app.models.budgets import Budget  # type: ignore
-        BUDGET_MODEL = Budget
-    except Exception:
-        try:
-            from app.models.orcamento import Orcamento as Budget  # type: ignore
-            BUDGET_MODEL = Budget
-        except Exception:
-            BUDGET_MODEL = None
 
-router = APIRouter(prefix="/app", tags=["Retention"])
+router = APIRouter(prefix="/app/retention", tags=["retention"])
 templates = Jinja2Templates(directory="app/templates")
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def _fmt_date_br(dt: datetime) -> str:
+    # mantém UTC como você já usa nos módulos
+    return dt.astimezone(timezone.utc).strftime("%d/%m/%Y")
+
+
+def _week_window_utc(now: datetime) -> Tuple[datetime, datetime]:
+    """
+    Janela: últimos 7 dias (inclui hoje).
+    Ex.: start = now - 7 dias
+    """
+    start = now - timedelta(days=7)
+    return start, now
 
 
 def _pct(n: int, d: int) -> float:
@@ -36,103 +47,104 @@ def _pct(n: int, d: int) -> float:
     return (n / d) * 100.0
 
 
-def _fmt_br(dt: datetime) -> str:
-    return dt.astimezone(timezone.utc).strftime("%d/%m/%Y")
-
-
-@router.get("/retention", response_class=HTMLResponse)
-def retention_weekly_report(request: Request):
-    """
-    Relatório semanal (últimos 7 dias) baseado nos orçamentos do usuário logado.
-    Não altera dados, apenas consulta.
-    """
-
-    # --- pega user_id do cookie/sessão (usa sua deps existente)
+def _get_current_user(request: Request, db: Session) -> User | None:
+    uid_raw = get_user_id_from_request(request)
+    if not uid_raw:
+        return None
     try:
-        from app.core.deps import get_user_id_from_request  # seu arquivo já tem isso (você mostrou)
+        uid = int(uid_raw)
     except Exception:
-        # se esse import falhar, é porque sua deps mudou de lugar
-        return HTMLResponse("Erro: não encontrei app.core.deps.get_user_id_from_request", status_code=500)
+        return None
 
-    user_id: Optional[str] = get_user_id_from_request(request)
-    if not user_id:
+    return db.get(User, uid)
+
+
+@router.get("", response_class=HTMLResponse)
+def retention_weekly_report(request: Request, db: Session = Depends(get_db)):
+    """
+    Retenção — Relatório semanal do usuário logado (últimos 7 dias):
+    - criados
+    - fechados (won)
+    - perdidos (lost)
+    - aguardando (awaiting)
+    - taxa de conversão = won / criados
+    """
+
+    flashes = pop_flashes(request)
+    user = _get_current_user(request, db)
+    if not user:
         return RedirectResponse(url="/login", status_code=302)
 
-    # --- valida model Budget
-    if BUDGET_MODEL is None:
-        return HTMLResponse(
-            "Erro: não encontrei o model de Orçamento (Budget/Orcamento). "
-            "Procure o nome certo em app/models e ajuste o import no router.",
-            status_code=500,
-        )
-
-    # --- janela semanal (últimos 7 dias)
     now = datetime.now(timezone.utc)
-    start = now - timedelta(days=7)
+    start, end = _week_window_utc(now)
 
-    # --- consultas
-    with SessionLocal() as db:
-        user = db.query(User).filter(User.id == int(user_id)).first()
-
-        # Nomes de campos mais comuns
-        # created_at: datetime
-        # user_id: int
-        # status: str (aguardando/fechado/perdido)
-        Budget = BUDGET_MODEL
-
-        # Ajuste aqui se seu campo não for "created_at"
-        created_field = getattr(Budget, "created_at", None)
-        user_field = getattr(Budget, "user_id", None)
-        status_field = getattr(Budget, "status", None)
-
-        if created_field is None or user_field is None or status_field is None:
-            return HTMLResponse(
-                "Erro: seu model de orçamento não tem algum campo esperado: user_id / status / created_at. "
-                "Abra o model e ajuste esses nomes no router.",
-                status_code=500,
+    # carrega todos os budgets da janela (mais confiável do que 4 counts soltos, e ainda é leve)
+    budgets = list(
+        db.scalars(
+            select(Budget).where(
+                Budget.user_id == user.id,
+                Budget.created_at >= start,
+                Budget.created_at <= end,
             )
-
-        # criados na semana
-        created_count = (
-            db.query(Budget)
-            .filter(user_field == int(user_id))
-            .filter(created_field >= start)
-            .count()
-        )
-
-        # fechados na semana (suporta variações de texto)
-        CLOSED_VALUES = {"fechado", "fechados", "closed", "won", "ganho"}
-        closed_count = (
-            db.query(Budget)
-            .filter(user_field == int(user_id))
-            .filter(created_field >= start)
-            .filter(status_field.in_(list(CLOSED_VALUES)))
-            .count()
-        )
-
-        conversion = _pct(closed_count, created_count)
-
-    # --- relatório em texto formatado
-    report_text = (
-        f"📊 RELATÓRIO SEMANAL — {_fmt_br(start)} a {_fmt_br(now)}\n\n"
-        f"✅ Orçamentos criados: {created_count}\n"
-        f"🔥 Orçamentos fechados: {closed_count}\n"
-        f"📈 Taxa de conversão: {conversion:.1f}%\n\n"
-        f"🎯 Meta simples:\n"
-        f"- Se você aumentar +1 follow-up por orçamento, a conversão costuma subir.\n"
-        f"- Use o botão COPIAR e envie pro WhatsApp/cliente/equipe.\n"
+        ).all()
     )
 
+    created_count = len(budgets)
+
+    # seus status reais:
+    # - awaiting
+    # - won
+    # - lost
+    won_count = sum(1 for b in budgets if (b.status or "").strip().lower() == "won")
+    lost_count = sum(1 for b in budgets if (b.status or "").strip().lower() == "lost")
+    awaiting_count = sum(1 for b in budgets if (b.status or "").strip().lower() == "awaiting")
+
+    # ✅ conversão semanal: fechados / criados
+    conversion = _pct(won_count, created_count)
+
+    # texto (bem “copiável” e alinhado com o card)
+    report_text = (
+        f"📊 RELATÓRIO SEMANAL — {_fmt_date_br(start)} a {_fmt_date_br(now)}\n\n"
+        f"✅ Orçamentos criados: {created_count}\n"
+        f"🟢 Fechados: {won_count}\n"
+        f"🟡 Aguardando: {awaiting_count}\n"
+        f"🔴 Perdidos: {lost_count}\n"
+        f"📈 Taxa de conversão: {conversion:.1f}%\n\n"
+        f"🎯 Ação simples (pra subir a conversão):\n"
+        f"- Faça 1 follow-up em todos os “Aguardando” (em até 24h).\n"
+        f"- Quem responde rápido fecha mais.\n"
+    )
+
+    # ✅ “anti-bug”: se o template estiver usando outro nome, ainda assim aparece certo.
     ctx: Dict = {
         "request": request,
+        "flashes": flashes,
+        "user": user,
         "now": now,
         "start": start,
+        "end": end,
+
+        # números base
         "created_count": created_count,
-        "closed_count": closed_count,
-        "conversion": conversion,
+        "won_count": won_count,
+        "lost_count": lost_count,
+        "awaiting_count": awaiting_count,
+
+        # conversão em vários formatos/nomes (pra não ficar 0% por chave errada)
+        "conversion": conversion,                         # float
+        "conversion_pct": conversion,                     # float (alias)
+        "conversion_value": conversion,                   # float (alias)
+        "conversion_str": f"{conversion:.0f}%",           # "50%"
+        "conversion_pct_str": f"{conversion:.0f}%",       # "50%"
+
+        # relatório em texto
         "report_text": report_text,
-        "user": user,
-        "is_pro": bool(getattr(user, "is_pro", False)) if user else False,
+
+        # alias caso seu template use nomes curtos
+        "created": created_count,
+        "closed": won_count,
+        "awaiting": awaiting_count,
+        "lost": lost_count,
     }
 
     return templates.TemplateResponse("retention/retention.html", ctx)
