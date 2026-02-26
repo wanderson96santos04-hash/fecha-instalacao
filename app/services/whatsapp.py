@@ -26,35 +26,54 @@ def build_budget_message(
     payment_method: str,
     notes: str,
 ) -> str:
+    """
+    Mensagem profissional otimizada para conversão e fechamento.
+    """
 
+    client = client_name.strip()
+    service = service_type.strip()
+    payment = payment_method.strip()
+    value_txt = value.strip()
     notes_txt = notes.strip()
 
-    obs = f"\n\nObservações:\n{notes_txt}" if notes_txt else ""
+    # Prazo (opcional)
+    prazo = f"📅 Prazo: {notes_txt}\n" if notes_txt else ""
 
-    # ⚠️ REMOVIDOS emojis para evitar problema de encoding
-    return (
-        f"Olá, {client_name}!\n\n"
+    message = (
+        f"Olá, {client}! 👋\n\n"
         f"Segue o seu orçamento:\n\n"
-        f"Serviço: {service_type}\n"
-        f"Valor: {value}\n"
-        f"Forma de pagamento: {payment_method}"
-        f"{obs}\n\n"
-        f"Se eu puder fechar com você hoje, posso agendar a instalação."
+        f"🔧 Serviço: {service}\n"
+        f"💰 Valor: R$ {value_txt}\n"
+        f"💳 Forma de pagamento: {payment}\n"
+        f"{prazo}\n"
+        f"Se eu puder confirmar com você hoje, já consigo reservar a agenda e garantir sua instalação mais rápido. ✅\n\n"
+        f"Fico à disposição para qualquer dúvida."
     )
+
+    return message
 
 
 def whatsapp_link(phone: str, message: str) -> str:
     p = normalize_phone_br(phone)
 
-    # Garante UTF-8 antes de aplicar quote
-    encoded = quote(message.encode("utf-8"))
+    # Encoding correto UTF-8
+    encoded = quote(message, safe="")
 
     return f"https://wa.me/{p}?text={encoded}"
 
 
 def followup_message(client_name: str) -> str:
-    return (
-        f"Olá, {client_name}!\n\n"
-        f"Passando pra confirmar se você conseguiu ver o orçamento.\n\n"
-        f"Se quiser, já deixo o melhor horário separado pra você."
+    """
+    Mensagem de follow-up profissional que aumenta taxa de resposta.
+    """
+
+    client = client_name.strip()
+
+    message = (
+        f"Olá, {client}! Tudo bem? 👋\n\n"
+        f"Passando para saber se você conseguiu ver o orçamento que enviei.\n\n"
+        f"Se quiser, já posso reservar um horário na agenda para sua instalação. ✅\n\n"
+        f"Me avise que organizo tudo para você."
     )
+
+    return message
