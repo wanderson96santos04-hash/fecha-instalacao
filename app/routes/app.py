@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import re
 from datetime import datetime, timezone, timedelta
-from typing import Any, Dict
+from typing import Dict
 
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -151,8 +151,9 @@ def dashboard(request: Request):
         won_value = sum(_parse_brl_value(b.value or "") for b in won)
         lost_value = sum(_parse_brl_value(b.value or "") for b in lost)
 
-        denom = (len(won) + len(lost))
-        conversion_pct = (len(won) / denom * 100.0) if denom > 0 else 0.0
+        # ✅ Conversão correta: fechados / total de orçamentos do mês
+        total_month = len(month_budgets)
+        conversion_pct = (len(won) / total_month * 100.0) if total_month > 0 else 0.0
 
         metrics = {
             "month_won_value": _money_brl(won_value),
@@ -384,8 +385,9 @@ def reports_page(request: Request):
     won_value = sum(_parse_brl_value(b.value or "") for b in won_budgets)
     lost_value = sum(_parse_brl_value(b.value or "") for b in lost_budgets)
 
-    denom = (len(won_budgets) + len(lost_budgets))
-    conversion = (len(won_budgets) / denom * 100.0) if denom > 0 else 0.0
+    # ✅ Conversão consistente: fechados / total (últimas 6 semanas)
+    total_last = len(last_budgets)
+    conversion = (len(won_budgets) / total_last * 100.0) if total_last > 0 else 0.0
 
     kpis = {
         "won_value": round(won_value, 2),
