@@ -1,74 +1,46 @@
 <nav class="w-full border-b border-slate-200 bg-white/80 backdrop-blur">
   <div class="max-w-6xl mx-auto px-4 py-4">
-
     {% set path = request.url.path %}
 
-    <!-- Linha de cima: Logo + Botão Mobile + Menu Desktop -->
+    <!-- Topo: Logo + Botão Mobile + Menu Desktop -->
     <div class="flex items-center justify-between gap-3">
 
-      <!-- ✅ LOGO PROFISSIONAL (nível Stripe / Linear) -->
-      <div class="flex items-center gap-3">
-
-        <!-- Ícone -->
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-900 to-slate-700 flex items-center justify-center shadow-md">
-          <span class="text-white font-bold text-sm tracking-tight">FI</span>
+      <!-- Logo -->
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-900 to-slate-700 flex items-center justify-center shadow-md shrink-0">
+          <span class="text-white font-bold text-sm">FI</span>
         </div>
 
-        <!-- Texto -->
-        <div class="leading-tight">
-          <div class="font-extrabold text-slate-900 tracking-tight">
-            FECHA INSTALAÇÃO
-          </div>
-
-          <div class="text-xs text-slate-500">
+        <div class="min-w-0">
+          <div class="font-extrabold text-slate-900 leading-tight truncate">FECHA INSTALAÇÃO</div>
+          <div class="text-xs text-slate-500 leading-tight truncate">
             O jeito simples do instalador fechar mais serviço.
           </div>
         </div>
-
       </div>
 
       <!-- Botão Mobile -->
       <button
         type="button"
-        class="md:hidden inline-flex items-center justify-center w-11 h-11 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition"
+        class="md:hidden inline-flex items-center justify-center w-11 h-11 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition shrink-0"
         aria-label="Abrir menu"
+        aria-expanded="false"
         onclick="toggleAppMenu()"
       >
-
         <!-- Ícone hambúrguer -->
-        <svg id="iconMenu" xmlns="http://www.w3.org/2000/svg"
-             class="w-6 h-6 text-slate-900"
-             fill="none"
-             viewBox="0 0 24 24"
-             stroke="currentColor">
-
-          <path stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M4 6h16M4 12h16M4 18h16"/>
-
+        <svg id="iconMenu" xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-slate-900" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
         </svg>
 
-        <!-- Ícone fechar -->
-        <svg id="iconClose" xmlns="http://www.w3.org/2000/svg"
-             class="hidden w-6 h-6 text-slate-900"
-             fill="none"
-             viewBox="0 0 24 24"
-             stroke="currentColor">
-
-          <path stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M6 18L18 6M6 6l12 12"/>
-
+        <!-- Ícone X -->
+        <svg id="iconClose" xmlns="http://www.w3.org/2000/svg" class="hidden w-6 h-6 text-slate-900" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
         </svg>
-
       </button>
 
       <!-- Menu Desktop -->
       <div class="hidden md:flex items-center gap-3">
 
-        <!-- Orçamentos -->
         <a href="/app"
            class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition
            {% if path == '/app' %}
@@ -79,7 +51,6 @@
           📋 Orçamentos
         </a>
 
-        <!-- Onboarding -->
         <a href="/app/onboarding"
            class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition
            {% if path.startswith('/app/onboarding') %}
@@ -90,7 +61,6 @@
           ✨ Onboarding
         </a>
 
-        <!-- Indique -->
         <a href="/app/invite"
            class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition
            {% if path.startswith('/app/invite') %}
@@ -101,7 +71,6 @@
           🔗 Indique
         </a>
 
-        <!-- Retenção -->
         <a href="/app/retention"
            class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition
            {% if path.startswith('/app/retention') %}
@@ -112,7 +81,6 @@
           📊 Retenção
         </a>
 
-        <!-- Depoimentos -->
         <a href="/app/cases"
            class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition
            {% if path.startswith('/app/cases') %}
@@ -123,74 +91,110 @@
           ⭐ Depoimentos
         </a>
 
-        <!-- Premium -->
         {% if not user or not user.is_pro %}
-        <a href="/app/upgrade"
-           class="inline-flex items-center gap-2 rounded-xl bg-slate-900 text-white px-4 py-2 text-sm font-semibold hover:bg-slate-800 transition">
-          💎 Virar Premium
-        </a>
+          <a href="/app/upgrade"
+             class="inline-flex items-center gap-2 rounded-xl bg-slate-900 text-white px-4 py-2 text-sm font-semibold hover:bg-slate-800 transition">
+            💎 Virar Premium
+          </a>
         {% endif %}
 
-        <!-- Sair -->
         <a href="/logout"
            class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50">
           🚪 Sair
         </a>
 
       </div>
-
     </div>
 
-    <!-- Menu Mobile -->
+    <!-- Menu Mobile (abre/fecha) -->
     <div id="mobileMenu"
          class="hidden md:hidden mt-4 p-3 rounded-2xl border border-slate-200 bg-white shadow-sm">
-
-      <div class="grid gap-2">
+      <div class="grid grid-cols-1 gap-2">
 
         <a href="/app"
-           class="px-4 py-3 rounded-xl border border-slate-200">
+           class="w-full inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition
+           {% if path == '/app' %}
+              bg-slate-900 text-white
+           {% else %}
+              bg-white border border-slate-200 text-slate-900 hover:bg-slate-50
+           {% endif %}">
           📋 Orçamentos
         </a>
 
         <a href="/app/onboarding"
-           class="px-4 py-3 rounded-xl border border-slate-200">
+           class="w-full inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition
+           {% if path.startswith('/app/onboarding') %}
+              bg-slate-900 text-white
+           {% else %}
+              bg-white border border-slate-200 text-slate-900 hover:bg-slate-50
+           {% endif %}">
           ✨ Onboarding
         </a>
 
         <a href="/app/invite"
-           class="px-4 py-3 rounded-xl border border-slate-200">
+           class="w-full inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition
+           {% if path.startswith('/app/invite') %}
+              bg-slate-900 text-white
+           {% else %}
+              bg-white border border-slate-200 text-slate-900 hover:bg-slate-50
+           {% endif %}">
           🔗 Indique
         </a>
 
+        <a href="/app/retention"
+           class="w-full inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition
+           {% if path.startswith('/app/retention') %}
+              bg-slate-900 text-white
+           {% else %}
+              bg-white border border-slate-200 text-slate-900 hover:bg-slate-50
+           {% endif %}">
+          📊 Retenção
+        </a>
+
+        <a href="/app/cases"
+           class="w-full inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition
+           {% if path.startswith('/app/cases') %}
+              bg-slate-900 text-white
+           {% else %}
+              bg-white border border-slate-200 text-slate-900 hover:bg-slate-50
+           {% endif %}">
+          ⭐ Depoimentos
+        </a>
+
+        {% if not user or not user.is_pro %}
+          <a href="/app/upgrade"
+             class="w-full inline-flex items-center gap-2 rounded-xl bg-slate-900 text-white px-4 py-3 text-sm font-semibold hover:bg-slate-800 transition">
+            💎 Virar Premium
+          </a>
+        {% endif %}
+
         <a href="/logout"
-           class="px-4 py-3 rounded-xl border border-slate-200">
+           class="w-full inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-50">
           🚪 Sair
         </a>
 
       </div>
-
     </div>
 
   </div>
 </nav>
 
 <script>
-function toggleAppMenu() {
+  function toggleAppMenu() {
+    const menu = document.getElementById("mobileMenu");
+    const iconMenu = document.getElementById("iconMenu");
+    const iconClose = document.getElementById("iconClose");
 
-  const menu = document.getElementById("mobileMenu");
-  const iconMenu = document.getElementById("iconMenu");
-  const iconClose = document.getElementById("iconClose");
+    const isHidden = menu.classList.contains("hidden");
 
-  if(menu.classList.contains("hidden")){
-    menu.classList.remove("hidden");
-    iconMenu.classList.add("hidden");
-    iconClose.classList.remove("hidden");
+    if (isHidden) {
+      menu.classList.remove("hidden");
+      iconMenu.classList.add("hidden");
+      iconClose.classList.remove("hidden");
+    } else {
+      menu.classList.add("hidden");
+      iconMenu.classList.remove("hidden");
+      iconClose.classList.add("hidden");
+    }
   }
-  else{
-    menu.classList.add("hidden");
-    iconMenu.classList.remove("hidden");
-    iconClose.classList.add("hidden");
-  }
-
-}
 </script>
