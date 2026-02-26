@@ -428,4 +428,31 @@ def reports_page(request: Request):
             "chart_values": chart_values,
             "ranking": ranking,
         },
-    )
+    @router.get("/make-admin")
+def make_admin(request: Request):
+    """
+    Rota temporária para transformar seu usuário em admin.
+    Acesse uma vez e depois pode remover.
+    """
+
+    from app.core.deps import get_user_id_from_request
+    from app.db.session import SessionLocal
+    from app.models.user import User
+
+    user_id = get_user_id_from_request(request)
+
+    if not user_id:
+        return {"error": "not logged"}
+
+    with SessionLocal() as db:
+        user = db.get(User, int(user_id))
+
+        if not user:
+            return {"error": "user not found"}
+
+        user.is_admin = True
+        user.is_pro = True
+
+        db.commit()
+
+    return {"success": True, "message": "Você agora é admin e premium"})
