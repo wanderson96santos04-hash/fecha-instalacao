@@ -6,39 +6,66 @@
     <!-- Linha de cima: Logo + Botão Mobile + Menu Desktop -->
     <div class="flex items-center justify-between gap-3">
 
-      <!-- Logo (✅ atualizado: FI + gradiente + shadow) -->
+      <!-- ✅ LOGO PROFISSIONAL (nível Stripe / Linear) -->
       <div class="flex items-center gap-3">
+
+        <!-- Ícone -->
         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-900 to-slate-700 flex items-center justify-center shadow-md">
-          <span class="text-white font-bold text-sm">FI</span>
+          <span class="text-white font-bold text-sm tracking-tight">FI</span>
         </div>
-        <div>
-          <div class="font-extrabold text-slate-900">FECHA INSTALAÇÃO</div>
+
+        <!-- Texto -->
+        <div class="leading-tight">
+          <div class="font-extrabold text-slate-900 tracking-tight">
+            FECHA INSTALAÇÃO
+          </div>
+
           <div class="text-xs text-slate-500">
             O jeito simples do instalador fechar mais serviço.
           </div>
         </div>
+
       </div>
 
-      <!-- Botão Mobile (hambúrguer bonito) -->
+      <!-- Botão Mobile -->
       <button
         type="button"
         class="md:hidden inline-flex items-center justify-center w-11 h-11 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition"
         aria-label="Abrir menu"
-        aria-expanded="false"
         onclick="toggleAppMenu()"
       >
+
         <!-- Ícone hambúrguer -->
-        <svg id="iconMenu" xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-slate-900" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+        <svg id="iconMenu" xmlns="http://www.w3.org/2000/svg"
+             class="w-6 h-6 text-slate-900"
+             fill="none"
+             viewBox="0 0 24 24"
+             stroke="currentColor">
+
+          <path stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 6h16M4 12h16M4 18h16"/>
+
         </svg>
 
-        <!-- Ícone X (escondido) -->
-        <svg id="iconClose" xmlns="http://www.w3.org/2000/svg" class="hidden w-6 h-6 text-slate-900" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        <!-- Ícone fechar -->
+        <svg id="iconClose" xmlns="http://www.w3.org/2000/svg"
+             class="hidden w-6 h-6 text-slate-900"
+             fill="none"
+             viewBox="0 0 24 24"
+             stroke="currentColor">
+
+          <path stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"/>
+
         </svg>
+
       </button>
 
-      <!-- Menu Desktop (mantém seu layout) -->
+      <!-- Menu Desktop -->
       <div class="hidden md:flex items-center gap-3">
 
         <!-- Orçamentos -->
@@ -63,7 +90,7 @@
           ✨ Onboarding
         </a>
 
-        <!-- Invite -->
+        <!-- Indique -->
         <a href="/app/invite"
            class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition
            {% if path.startswith('/app/invite') %}
@@ -96,46 +123,12 @@
           ⭐ Depoimentos
         </a>
 
-        <!-- Marketing (Prova Social) -->
-        <a href="/app/social-proof"
-           class="inline-flex items-center gap-3 rounded-xl px-4 py-2 transition
-           {% if path.startswith('/app/social-proof') %}
-              bg-amber-500 text-white shadow-md
-           {% else %}
-              border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100
-           {% endif %}">
-          <span class="text-lg">📣</span>
-          <div class="flex flex-col leading-tight">
-            <span class="text-sm font-bold">Marketing</span>
-            <span class="text-xs opacity-80">Prova Social</span>
-          </div>
-        </a>
-
-        <!-- Aquisição (PRO Feature) -->
-        {% if user and user.is_pro %}
-          <a href="/acquisition"
-             class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition
-             {% if path.startswith('/acquisition') %}
-                bg-green-600 text-white shadow-md
-             {% else %}
-                border border-green-200 bg-green-50 text-green-700 hover:bg-green-100
-             {% endif %}">
-            🚀 Aquisição <span class="text-xs font-bold">PRO</span>
-          </a>
-        {% else %}
-          <a href="/app/upgrade"
-             class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-50"
-             title="Disponível apenas no Plano Pro">
-            🔒 Aquisição <span class="text-xs font-bold text-orange-600">PRO</span>
-          </a>
-        {% endif %}
-
-        <!-- Virar Premium -->
+        <!-- Premium -->
         {% if not user or not user.is_pro %}
-          <a href="/app/upgrade"
-             class="inline-flex items-center gap-2 rounded-xl bg-slate-900 text-white px-4 py-2 text-sm font-semibold hover:bg-slate-800 transition">
-            💎 Virar Premium
-          </a>
+        <a href="/app/upgrade"
+           class="inline-flex items-center gap-2 rounded-xl bg-slate-900 text-white px-4 py-2 text-sm font-semibold hover:bg-slate-800 transition">
+          💎 Virar Premium
+        </a>
         {% endif %}
 
         <!-- Sair -->
@@ -145,130 +138,59 @@
         </a>
 
       </div>
+
     </div>
 
-    <!-- Menu Mobile (colapsável) -->
+    <!-- Menu Mobile -->
     <div id="mobileMenu"
          class="hidden md:hidden mt-4 p-3 rounded-2xl border border-slate-200 bg-white shadow-sm">
 
-      <div class="grid grid-cols-1 gap-2">
+      <div class="grid gap-2">
 
         <a href="/app"
-           class="w-full inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition
-           {% if path == '/app' %}
-              bg-slate-900 text-white
-           {% else %}
-              bg-white border border-slate-200 text-slate-900 hover:bg-slate-50
-           {% endif %}">
+           class="px-4 py-3 rounded-xl border border-slate-200">
           📋 Orçamentos
         </a>
 
         <a href="/app/onboarding"
-           class="w-full inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition
-           {% if path.startswith('/app/onboarding') %}
-              bg-slate-900 text-white
-           {% else %}
-              bg-white border border-slate-200 text-slate-900 hover:bg-slate-50
-           {% endif %}">
+           class="px-4 py-3 rounded-xl border border-slate-200">
           ✨ Onboarding
         </a>
 
         <a href="/app/invite"
-           class="w-full inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition
-           {% if path.startswith('/app/invite') %}
-              bg-slate-900 text-white
-           {% else %}
-              bg-white border border-slate-200 text-slate-900 hover:bg-slate-50
-           {% endif %}">
+           class="px-4 py-3 rounded-xl border border-slate-200">
           🔗 Indique
         </a>
 
-        <a href="/app/retention"
-           class="w-full inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition
-           {% if path.startswith('/app/retention') %}
-              bg-slate-900 text-white
-           {% else %}
-              bg-white border border-slate-200 text-slate-900 hover:bg-slate-50
-           {% endif %}">
-          📊 Retenção
-        </a>
-
-        <a href="/app/cases"
-           class="w-full inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition
-           {% if path.startswith('/app/cases') %}
-              bg-slate-900 text-white
-           {% else %}
-              bg-white border border-slate-200 text-slate-900 hover:bg-slate-50
-           {% endif %}">
-          ⭐ Depoimentos
-        </a>
-
-        <a href="/app/social-proof"
-           class="w-full inline-flex items-center gap-3 rounded-xl px-4 py-3 transition
-           {% if path.startswith('/app/social-proof') %}
-              bg-amber-500 text-white
-           {% else %}
-              border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100
-           {% endif %}">
-          <span class="text-lg">📣</span>
-          <div class="flex flex-col leading-tight">
-            <span class="text-sm font-bold">Marketing</span>
-            <span class="text-xs opacity-80">Prova Social</span>
-          </div>
-        </a>
-
-        {% if user and user.is_pro %}
-          <a href="/acquisition"
-             class="w-full inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition
-             {% if path.startswith('/acquisition') %}
-                bg-green-600 text-white
-             {% else %}
-                border border-green-200 bg-green-50 text-green-700 hover:bg-green-100
-             {% endif %}">
-            🚀 Aquisição <span class="text-xs font-bold">PRO</span>
-          </a>
-        {% else %}
-          <a href="/app/upgrade"
-             class="w-full inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-50"
-             title="Disponível apenas no Plano Pro">
-            🔒 Aquisição <span class="text-xs font-bold text-orange-600">PRO</span>
-          </a>
-        {% endif %}
-
-        {% if not user or not user.is_pro %}
-          <a href="/app/upgrade"
-             class="w-full inline-flex items-center gap-2 rounded-xl bg-slate-900 text-white px-4 py-3 text-sm font-semibold hover:bg-slate-800 transition">
-            💎 Virar Premium
-          </a>
-        {% endif %}
-
         <a href="/logout"
-           class="w-full inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-50">
+           class="px-4 py-3 rounded-xl border border-slate-200">
           🚪 Sair
         </a>
 
       </div>
+
     </div>
 
   </div>
 </nav>
 
 <script>
-  function toggleAppMenu() {
-    const menu = document.getElementById("mobileMenu");
-    const iconMenu = document.getElementById("iconMenu");
-    const iconClose = document.getElementById("iconClose");
+function toggleAppMenu() {
 
-    const isHidden = menu.classList.contains("hidden");
+  const menu = document.getElementById("mobileMenu");
+  const iconMenu = document.getElementById("iconMenu");
+  const iconClose = document.getElementById("iconClose");
 
-    if (isHidden) {
-      menu.classList.remove("hidden");
-      iconMenu.classList.add("hidden");
-      iconClose.classList.remove("hidden");
-    } else {
-      menu.classList.add("hidden");
-      iconMenu.classList.remove("hidden");
-      iconClose.classList.add("hidden");
-    }
+  if(menu.classList.contains("hidden")){
+    menu.classList.remove("hidden");
+    iconMenu.classList.add("hidden");
+    iconClose.classList.remove("hidden");
   }
+  else{
+    menu.classList.add("hidden");
+    iconMenu.classList.remove("hidden");
+    iconClose.classList.add("hidden");
+  }
+
+}
 </script>
