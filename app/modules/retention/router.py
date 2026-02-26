@@ -12,8 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_user_id_from_request, pop_flashes
 from app.db.session import SessionLocal
 from app.models.user import User
-from app.models.budget import Budget  # no seu projeto é esse
-
+from app.models.budget import Budget
 
 router = APIRouter(prefix="/app/retention", tags=["retention"])
 templates = Jinja2Templates(directory="app/templates")
@@ -28,15 +27,10 @@ def get_db():
 
 
 def _fmt_date_br(dt: datetime) -> str:
-    # mantém UTC como você já usa nos módulos
     return dt.astimezone(timezone.utc).strftime("%d/%m/%Y")
 
 
 def _week_window_utc(now: datetime) -> Tuple[datetime, datetime]:
-    """
-    Janela: últimos 7 dias (inclui hoje).
-    Ex.: start = now - 7 dias
-    """
     start = now - timedelta(days=7)
     return start, now
 
@@ -55,21 +49,11 @@ def _get_current_user(request: Request, db: Session) -> User | None:
         uid = int(uid_raw)
     except Exception:
         return None
-
     return db.get(User, uid)
 
 
 @router.get("", response_class=HTMLResponse)
 def retention_weekly_report(request: Request, db: Session = Depends(get_db)):
-    """
-    Retenção — Relatório semanal do usuário logado (últimos 7 dias):
-    - criados
-    - fechados (won)
-    - perdidos (lost)
-    - aguardando (awaiting)
-    - taxa de conversão = won / criados
-    """
-
     flashes = pop_flashes(request)
     user = _get_current_user(request, db)
     if not user:
@@ -78,7 +62,6 @@ def retention_weekly_report(request: Request, db: Session = Depends(get_db)):
     now = datetime.now(timezone.utc)
     start, end = _week_window_utc(now)
 
-    # carrega todos os budgets da janela (mais confiável do que 4 counts soltos, e ainda é leve)
     budgets = list(
         db.scalars(
             select(Budget).where(
@@ -91,18 +74,12 @@ def retention_weekly_report(request: Request, db: Session = Depends(get_db)):
 
     created_count = len(budgets)
 
-    # seus status reais:
-    # - awaiting
-    # - won
-    # - lost
     won_count = sum(1 for b in budgets if (b.status or "").strip().lower() == "won")
     lost_count = sum(1 for b in budgets if (b.status or "").strip().lower() == "lost")
     awaiting_count = sum(1 for b in budgets if (b.status or "").strip().lower() == "awaiting")
 
-    # ✅ conversão semanal: fechados / criados
     conversion = _pct(won_count, created_count)
 
-    # texto (bem “copiável” e alinhado com o card)
     report_text = (
         f"📊 RELATÓRIO SEMANAL — {_fmt_date_br(start)} a {_fmt_date_br(now)}\n\n"
         f"✅ Orçamentos criados: {created_count}\n"
@@ -115,7 +92,10 @@ def retention_weekly_report(request: Request, db: Session = Depends(get_db)):
         f"- Quem responde rápido fecha mais.\n"
     )
 
-    # ✅ “anti-bug”: se o template estiver usando outro nome, ainda assim aparece certo.
+    # ✅ ALIASES (pra bater com qualquer template antigo/novo)
+    conversion_str_0 = f"{conversion:.0f}%"
+    conversion_str_1 = f"{conversion:.1f}%"
+
     ctx: Dict = {
         "request": request,
         "flashes": flashes,
@@ -124,27 +104,29 @@ def retention_weekly_report(request: Request, db: Session = Depends(get_db)):
         "start": start,
         "end": end,
 
-        # números base
+        # nomes principais
         "created_count": created_count,
         "won_count": won_count,
         "lost_count": lost_count,
         "awaiting_count": awaiting_count,
-
-        # conversão em vários formatos/nomes (pra não ficar 0% por chave errada)
-        "conversion": conversion,                         # float
-        "conversion_pct": conversion,                     # float (alias)
-        "conversion_value": conversion,                   # float (alias)
-        "conversion_str": f"{conversion:.0f}%",           # "50%"
-        "conversion_pct_str": f"{conversion:.0f}%",       # "50%"
-
-        # relatório em texto
+        "conversion": conversion,
         "report_text": report_text,
 
-        # alias caso seu template use nomes curtos
-        "created": created_count,
-        "closed": won_count,
-        "awaiting": awaiting_count,
+        # ✅ nomes MUITO usados em template (cards)
+        "closed_count": won_count,               # se o card usa closed_count
+        "closed": won_count,                     # se o card usa closed
         "lost": lost_count,
+        "awaiting": awaiting_count,
+        "created": created_count,
+
+        # ✅ conversão em vários nomes
+        "conversion_pct": conversion,            # se usa conversion_pct (float)
+        "conversion_percentage": conversion,     # alias
+        "conversion_rate": conversion,           # alias
+        "conversion_str": conversion_str_0,      # "50%"
+        "conversion_pct_str": conversion_str_0,  # "50%"
+        "conversion_display": conversion_str_0,  # "50%"
+        "conversion_display_1": conversion_str_1 # "50.0%"
     }
 
     return templates.TemplateResponse("retention/retention.html", ctx)
