@@ -43,10 +43,9 @@ def _parse_brl_value(value: str) -> float:
       "R$ 1.000" / "1000" / "1.000,50" / "1000,50" / "2500" / "2.500"
     para float (em reais).
 
-    ✅ Corrige o bug clássico:
-      "1.000" não pode virar 1.0 (float), tem que virar 1000.0
+    ✅ Corrige bug: "1.000" tem que virar 1000.0 (milhar), não 1.0
     """
-    if not value:
+    if value is None:
         return 0.0
 
     s = str(value).strip()
@@ -67,18 +66,17 @@ def _parse_brl_value(value: str) -> float:
             return 0.0
 
     # Caso 2: não tem vírgula, mas tem ponto.
-    # Aqui o mais comum no BR é ponto como milhar: "1.000" / "2.500" -> remover pontos.
+    # Normal no BR é ponto como milhar: "1.000" / "2.500" -> remover pontos.
     if "." in s:
-        # se parecer decimal (termina com .00, .50 etc), deixa como decimal
-        # senão, trata como milhar
         parts = s.split(".")
+        # se parecer decimal (ex: 1000.50), mantém
         if len(parts) == 2 and len(parts[1]) in (1, 2):
-            # exemplo: "1000.5" ou "1000.50"
             try:
                 return float(s)
             except Exception:
                 return 0.0
 
+        # senão, trata ponto como milhar
         s = s.replace(".", "")
         try:
             return float(s)
@@ -102,7 +100,6 @@ def _money_brl(v: float) -> str:
 
 def _month_window_utc(now: datetime) -> tuple[datetime, datetime]:
     start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
-    # próximo mês
     if now.month == 12:
         end = datetime(now.year + 1, 1, 1, tzinfo=timezone.utc)
     else:
@@ -163,10 +160,10 @@ def dashboard(request: Request):
             "month_conversion_pct": f"{conversion_pct:.0f}%",
             "month_total_count": len(month_budgets),
 
-            # ✅ bate com seu dashboard.html ({{ metrics.month_awaiting }})
+            # ✅ bate com dashboard.html ({{ metrics.month_awaiting }})
             "month_awaiting": len(awaiting),
 
-            # (opcional) compat caso algum template antigo use isso
+            # compat
             "month_awaiting_count": len(awaiting),
         }
 
@@ -357,7 +354,6 @@ def reports_page(request: Request):
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-        # Premium gate
         if not user.is_pro:
             return redirect("/app/upgrade", kind="error", message="Relatórios é Premium.")
 
@@ -369,7 +365,6 @@ def reports_page(request: Request):
             ).all()
         )
 
-    # ===== KPIs (últimas 6 semanas) =====
     last_budgets = []
     for b in budgets:
         if not b.created_at:
@@ -397,7 +392,6 @@ def reports_page(request: Request):
         "conversion": round(conversion, 1),
     }
 
-    # ===== Fechado por semana (últimas 6 semanas) =====
     week_map: Dict[str, float] = {}
     for b in won_budgets:
         dt = b.created_at.replace(tzinfo=timezone.utc)
@@ -409,13 +403,12 @@ def reports_page(request: Request):
     chart_labels = [k for k, _ in week_items] or []
     chart_values = [round(v, 2) for _, v in week_items] or []
 
-    # ===== Ranking de serviços (fechados) =====
     service_map: Dict[str, int] = {}
     for b in won_budgets:
         service = (b.service_type or "").strip() or "Sem categoria"
         service_map[service] = service_map.get(service, 0) + 1
 
-    ranking = sorted(service_map.items(), key=lambda x: x[1], reverse=True)[:8]  # [(name, qty), ...]
+    ranking = sorted(service_map.items(), key=lambda x: x[1], reverse=True)[:8]
 
     return templates.TemplateResponse(
         "reports.html",
@@ -428,31 +421,36 @@ def reports_page(request: Request):
             "chart_values": chart_values,
             "ranking": ranking,
         },
-    @router.get("/make-admin")
+    )
+
+
+# ✅ ROTA TEMPORÁRIA (fica FORA de outras funções)
+@router.get("/make-admin")
 def make_admin(request: Request):
     """
-    Rota temporária para transformar seu usuário em admin.
-    Acesse uma vez e depois pode remover.
+    Rota temporária para transformar o usuário logado em ADMIN + PRO.
+    Acesse uma vez e depois REMOVA.
     """
-
-    from app.core.deps import get_user_id_from_request
-    from app.db.session import SessionLocal
-    from app.models.user import User
-
     user_id = get_user_id_from_request(request)
-
     if not user_id:
         return {"error": "not logged"}
 
-    with SessionLocal() as db:
-        user = db.get(User, int(user_id))
+    try:
+        uid = int(user_id)
+    except Exception:
+        return {"error": "invalid user id"}
 
+    with SessionLocal() as db:
+        user = db.get(User, uid)
         if not user:
             return {"error": "user not found"}
 
-        user.is_admin = True
-        user.is_pro = True
+        # ajuste se seus campos tiverem nomes diferentes
+        if hasattr(user, "is_admin"):
+            user.is_admin = True
+        if hasattr(user, "is_pro"):
+            user.is_pro = True
 
         db.commit()
 
-    return {"success": True, "message": "Você agora é admin e premium"})
+    return {"success": True, "message": "Você agora é admin e premium"}
