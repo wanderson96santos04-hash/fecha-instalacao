@@ -91,6 +91,40 @@
           ⭐ Depoimentos
         </a>
 
+        <!-- ✅ Marketing (Prova Social) -->
+        <a href="/app/social-proof"
+           class="inline-flex items-center gap-3 rounded-xl px-4 py-2 transition
+           {% if path.startswith('/app/social-proof') %}
+              bg-amber-500 text-white shadow-md
+           {% else %}
+              border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100
+           {% endif %}">
+          <span class="text-lg">📣</span>
+          <div class="flex flex-col leading-tight">
+            <span class="text-sm font-bold">Marketing</span>
+            <span class="text-xs opacity-80">Prova Social</span>
+          </div>
+        </a>
+
+        <!-- ✅ Aquisição (PRO Feature) -->
+        {% if user and user.is_pro %}
+          <a href="/app/acquisition"
+             class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition
+             {% if path.startswith('/app/acquisition') %}
+                bg-green-600 text-white shadow-md
+             {% else %}
+                border border-green-200 bg-green-50 text-green-700 hover:bg-green-100
+             {% endif %}">
+            🚀 Aquisição <span class="text-xs font-bold">PRO</span>
+          </a>
+        {% else %}
+          <a href="/app/upgrade"
+             class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-50"
+             title="Disponível apenas no Plano Pro">
+            🔒 Aquisição <span class="text-xs font-bold text-orange-600">PRO</span>
+          </a>
+        {% endif %}
+
         {% if not user or not user.is_pro %}
           <a href="/app/upgrade"
              class="inline-flex items-center gap-2 rounded-xl bg-slate-900 text-white px-4 py-2 text-sm font-semibold hover:bg-slate-800 transition">
@@ -160,6 +194,40 @@
            {% endif %}">
           ⭐ Depoimentos
         </a>
+
+        <!-- ✅ Marketing (Prova Social) -->
+        <a href="/app/social-proof"
+           class="w-full inline-flex items-center gap-3 rounded-xl px-4 py-3 transition
+           {% if path.startswith('/app/social-proof') %}
+              bg-amber-500 text-white
+           {% else %}
+              border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100
+           {% endif %}">
+          <span class="text-lg">📣</span>
+          <div class="flex flex-col leading-tight">
+            <span class="text-sm font-bold">Marketing</span>
+            <span class="text-xs opacity-80">Prova Social</span>
+          </div>
+        </a>
+
+        <!-- ✅ Aquisição (PRO Feature) -->
+        {% if user and user.is_pro %}
+          <a href="/app/acquisition"
+             class="w-full inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition
+             {% if path.startswith('/app/acquisition') %}
+                bg-green-600 text-white
+             {% else %}
+                border border-green-200 bg-green-50 text-green-700 hover:bg-green-100
+             {% endif %}">
+            🚀 Aquisição <span class="text-xs font-bold">PRO</span>
+          </a>
+        {% else %}
+          <a href="/app/upgrade"
+             class="w-full inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-50"
+             title="Disponível apenas no Plano Pro">
+            🔒 Aquisição <span class="text-xs font-bold text-orange-600">PRO</span>
+          </a>
+        {% endif %}
 
         {% if not user or not user.is_pro %}
           <a href="/app/upgrade"
