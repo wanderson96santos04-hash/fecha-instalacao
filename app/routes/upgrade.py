@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -13,13 +15,22 @@ router = APIRouter(prefix="/app")
 templates = Jinja2Templates(directory="app/templates")
 
 
-# =========================
-# PÁGINA DE UPGRADE
-# =========================
+def _get_checkout_url() -> str:
+    """
+    Não quebra se o settings não tiver o atributo.
+    Prioridade:
+    1) settings.KIWIFY_CHECKOUT_URL (se existir)
+    2) env var KIWIFY_CHECKOUT_URL
+    """
+    url = (getattr(settings, "KIWIFY_CHECKOUT_URL", "") or "").strip()
+    if not url:
+        url = (os.getenv("KIWIFY_CHECKOUT_URL") or "").strip()
+    return url
+
+
 @router.get("/upgrade", response_class=HTMLResponse)
 def upgrade_page(request: Request):
     flashes = pop_flashes(request)
-
     uid = get_user_id_from_request(request)
     if not uid:
         return redirect("/login", kind="error", message="Faça login para virar Pro.")
@@ -29,7 +40,7 @@ def upgrade_page(request: Request):
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-    checkout_url = (settings.KIWIFY_CHECKOUT_URL or "").strip()
+    checkout_url = _get_checkout_url()
 
     return templates.TemplateResponse(
         "upgrade.html",
@@ -42,30 +53,19 @@ def upgrade_page(request: Request):
     )
 
 
-# =========================
-# ROTA DE CHECKOUT (KIWIFY)
-# =========================
+# rota que o botão "Assinar Premium" chama (upgrade.html -> /app/checkout)
 @router.get("/checkout")
 def checkout(request: Request):
     uid = get_user_id_from_request(request)
     if not uid:
-        return redirect(
-            "/login",
-            kind="error",
-            message="Faça login para assinar o Premium.",
-        )
+        return redirect("/login", kind="error", message="Faça login para assinar o Premium.")
 
     with SessionLocal() as db:
         user = db.get(User, uid)
         if not user:
-            return redirect(
-                "/login",
-                kind="error",
-                message="Faça login novamente.",
-            )
+            return redirect("/login", kind="error", message="Faça login novamente.")
 
-    checkout_url = (settings.KIWIFY_CHECKOUT_URL or "").strip()
-
+    checkout_url = _get_checkout_url()
     if not checkout_url:
         return redirect(
             "/app/upgrade",
