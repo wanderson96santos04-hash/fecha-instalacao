@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.core.config import settings
@@ -36,3 +36,27 @@ def upgrade_page(request: Request):
             "checkout_url": checkout_url,
         },
     )
+
+
+# ✅ NOVO: rota que o botão /app/checkout precisa ter
+@router.get("/checkout")
+def checkout(request: Request):
+    uid = get_user_id_from_request(request)
+    if not uid:
+        return RedirectResponse(url="/login", status_code=302)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return RedirectResponse(url="/login", status_code=302)
+
+    checkout_url = (settings.KIWIFY_CHECKOUT_URL or "").strip()
+    if not checkout_url:
+        # sem quebrar nada: volta pro upgrade com aviso
+        return redirect(
+            "/app/upgrade",
+            kind="error",
+            message="Checkout não configurado. Defina KIWIFY_CHECKOUT_URL no Render.",
+        )
+
+    return RedirectResponse(url=checkout_url, status_code=302)
