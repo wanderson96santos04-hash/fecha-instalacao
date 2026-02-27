@@ -163,9 +163,13 @@ def acquisition_page(request: Request):
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-        # Se você quiser travar Aquisição como PRO, descomente:
-        # if not user.is_pro:
-        #     return redirect("/app/upgrade", kind="error", message="Aquisição é Premium.")
+        # ✅ CORRIGIDO: Aquisição é PRO — FREE vai para /app/upgrade
+        if not user.is_pro:
+            return redirect(
+                "/app/upgrade",
+                kind="error",
+                message="Esse módulo é exclusivo para usuários Premium.",
+            )
 
     return templates.TemplateResponse(
         "acquisition.html",
@@ -227,6 +231,14 @@ def acquisition_generate(
         user = db.get(User, uid)
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
+
+        # ✅ CORRIGIDO: POST também precisa bloquear FREE
+        if not user.is_pro:
+            return redirect(
+                "/app/upgrade",
+                kind="error",
+                message="Esse módulo é exclusivo para usuários Premium.",
+            )
 
     messages = _generate_messages(nicho=nicho, cidade=cidade, servico=servico, mode=mode)
 
@@ -315,6 +327,22 @@ def social_proof_page(request: Request):
 
     return templates.TemplateResponse(
         "social_proof/social_proof.html",
+        {"request": request, "flashes": flashes, "user": user},
+    )
+
+
+@router.get("/upgrade", response_class=HTMLResponse)
+def upgrade_page(request: Request):
+    flashes = pop_flashes(request)
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+
+    return templates.TemplateResponse(
+        "upgrade.html",
         {"request": request, "flashes": flashes, "user": user},
     )
 
