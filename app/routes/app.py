@@ -186,23 +186,28 @@ def acquisition_page(request: Request):
 
 
 def _generate_messages(nicho: str, cidade: str, servico: str, mode: str) -> List[str]:
+    # ✅ APENAS AQUI FOI TROCADO: mensagens profissionais (mantendo assinatura e fluxo)
     nicho = (nicho or "").strip()
     cidade = (cidade or "").strip()
     servico = (servico or "").strip()
     mode = (mode or "media").strip().lower()
 
+    # Mantém o parâmetro "mode" sem quebrar nada:
+    # - curtas: mais diretas
+    # - media: equilibradas
+    # - agressiva: com mais urgência/oferta
     base = {
         "curta": [
-            f"Oi! Vi que você trabalha com {nicho} em {cidade}. Você faz {servico}? Se sim, posso te mandar uma proposta rápida.",
-            f"Olá! Você atende {servico} aí em {cidade}? Posso te mandar uma condição especial hoje.",
+            f"Olá! Você é de {cidade}? Trabalho com {servico}. Quer que eu te envie uma estimativa rápida sem compromisso?",
+            f"Oi! Atendo {servico} em {cidade}. Quer uma simulação/estimativa gratuita?",
         ],
         "media": [
-            f"Olá! Tudo bem? Vi seu trabalho com {nicho} em {cidade}. Você atende {servico}? Tenho uma proposta rápida que pode te ajudar a fechar mais.",
-            f"Oi! Tudo certo? Estou falando com empresas de {nicho} em {cidade}. Você faz {servico}? Posso te enviar uma ideia bem direta pra aumentar conversão.",
+            f"Olá! Tudo bem? Atendo {servico} em {cidade}. Muitos clientes conseguem ótimo custo-benefício. Quer que eu te envie uma estimativa gratuita?",
+            f"Oi! Eu trabalho com {servico} em {cidade}. Posso te passar uma orientação rápida e um valor aproximado sem compromisso. Posso te enviar?",
         ],
         "agressiva": [
-            f"Fala! Trabalho com aumento de fechamento pra {nicho} em {cidade}. Se você faz {servico}, posso te mostrar um jeito simples de fechar mais essa semana.",
-            f"Oi! Se você atende {servico} em {cidade}, posso te mandar uma proposta objetiva pra você fechar mais clientes. Quer que eu envie?",
+            f"Oi! Estou com agenda aberta essa semana para {servico} em {cidade}. Quer que eu te mande uma estimativa e opções de atendimento?",
+            f"Olá! Faço {servico} em {cidade} e consigo te passar uma proposta objetiva hoje. Quer que eu envie?",
         ],
     }
 
@@ -369,4 +374,4 @@ def budgets_new_page(request: Request):
 
 # ⚠️ Se no seu arquivo existe mais código abaixo daqui:
 # mantenha tudo exatamente como está.
-# A única alteração necessária foi remover a rota duplicada /upgrade.
+# A única alteração necessária foi trocar as mensagens do módulo aquisição.
