@@ -13,9 +13,13 @@ router = APIRouter(prefix="/app")
 templates = Jinja2Templates(directory="app/templates")
 
 
+# =========================
+# PÁGINA DE UPGRADE
+# =========================
 @router.get("/upgrade", response_class=HTMLResponse)
 def upgrade_page(request: Request):
     flashes = pop_flashes(request)
+
     uid = get_user_id_from_request(request)
     if not uid:
         return redirect("/login", kind="error", message="Faça login para virar Pro.")
@@ -38,19 +42,30 @@ def upgrade_page(request: Request):
     )
 
 
-# ✅ NOVO: rota que o botão "Assinar Premium" chama (upgrade.html -> /app/checkout)
+# =========================
+# ROTA DE CHECKOUT (KIWIFY)
+# =========================
 @router.get("/checkout")
 def checkout(request: Request):
     uid = get_user_id_from_request(request)
     if not uid:
-        return redirect("/login", kind="error", message="Faça login para assinar o Premium.")
+        return redirect(
+            "/login",
+            kind="error",
+            message="Faça login para assinar o Premium.",
+        )
 
     with SessionLocal() as db:
         user = db.get(User, uid)
         if not user:
-            return redirect("/login", kind="error", message="Faça login novamente.")
+            return redirect(
+                "/login",
+                kind="error",
+                message="Faça login novamente.",
+            )
 
     checkout_url = (settings.KIWIFY_CHECKOUT_URL or "").strip()
+
     if not checkout_url:
         return redirect(
             "/app/upgrade",
