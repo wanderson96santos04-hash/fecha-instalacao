@@ -38,25 +38,24 @@ def upgrade_page(request: Request):
     )
 
 
-# ✅ NOVO: rota que o botão /app/checkout precisa ter
+# ✅ NOVO: rota que o botão "Assinar Premium" chama (upgrade.html -> /app/checkout)
 @router.get("/checkout")
 def checkout(request: Request):
     uid = get_user_id_from_request(request)
     if not uid:
-        return RedirectResponse(url="/login", status_code=302)
+        return redirect("/login", kind="error", message="Faça login para assinar o Premium.")
 
     with SessionLocal() as db:
         user = db.get(User, uid)
         if not user:
-            return RedirectResponse(url="/login", status_code=302)
+            return redirect("/login", kind="error", message="Faça login novamente.")
 
     checkout_url = (settings.KIWIFY_CHECKOUT_URL or "").strip()
     if not checkout_url:
-        # sem quebrar nada: volta pro upgrade com aviso
         return redirect(
             "/app/upgrade",
             kind="error",
-            message="Checkout não configurado. Defina KIWIFY_CHECKOUT_URL no Render.",
+            message="Checkout não configurado. Defina KIWIFY_CHECKOUT_URL nas variáveis de ambiente.",
         )
 
     return RedirectResponse(url=checkout_url, status_code=302)
