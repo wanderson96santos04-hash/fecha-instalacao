@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block body %}
+{% include "partials/nav_app.html" %}
+
+<main class="flex-1">
+  <div class="max-w-6xl mx-auto px-4 py-10">
+    <header class="mb-8">
+      <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+        Prova real / Depoimentos
+      </h1>
+      <p class="mt-2 text-slate-600 text-lg">
+        Ainda não há depoimentos cadastrados.
+      </p>
+    </header>
+
+    <section class="bg-white/80 backdrop-blur rounded-2xl shadow-lg border border-slate-200 p-6 md:p-7">
+      <div class="text-slate-700">
+        <p class="mb-3">
+          Quando você adicionar depoimentos (texto, imagem ou print), eles vão aparecer aqui.
+        </p>
+
+        <p class="text-sm text-slate-500">
+          Dica: use prints do WhatsApp, avaliações do Google, ou mensagens de clientes (sempre com permissão).
+        </p>
+      </div>
+    </section>
+  </div>
+</main>
+{% endblock %}

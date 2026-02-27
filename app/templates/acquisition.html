@@ -55,9 +55,7 @@
           </div>
 
           <div>
-            <label class="block text-sm font-semibold text-slate-800 mb-2">
-              Tom da mensagem
-            </label>
+            <label class="block text-sm font-semibold text-slate-800 mb-2">Tom da mensagem</label>
 
             <select
               name="mode"
@@ -171,6 +169,7 @@
       }
     };
 
+    // copiar individual
     document.querySelectorAll(".copyBtn").forEach((btn) => {
       btn.addEventListener("click", () => {
         const card = btn.closest("article");
@@ -180,6 +179,7 @@
       });
     });
 
+    // copiar todas
     const copyAllBtn = document.getElementById("copyAllBtn");
     if (copyAllBtn) {
       copyAllBtn.addEventListener("click", () => {
