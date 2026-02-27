@@ -265,10 +265,25 @@ def invite_page(request: Request):
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-    # CORRIGIDO: página simples para "Indique" não quebrar
+    # Esses valores precisam existir porque o template do módulo usa:
+    # {{ invite_link }}, {{ copy_count }}, {{ click_count }}, {{ share_text }}
+    # Depois você liga isso no services.py do módulo invite.
+    invite_link = "https://fecha-instalacao.onrender.com/signup"
+    copy_count = 0
+    click_count = 0
+    share_text = "Vem testar o sistema: https://fecha-instalacao.onrender.com/signup"
+
     return templates.TemplateResponse(
-        "invite.html",
-        {"request": request, "flashes": flashes, "user": user},
+        "invite/invite.html",
+        {
+            "request": request,
+            "flashes": flashes,
+            "user": user,
+            "invite_link": invite_link,
+            "copy_count": copy_count,
+            "click_count": click_count,
+            "share_text": share_text,
+        },
     )
 
 
