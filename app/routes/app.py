@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import re
 from datetime import datetime, timezone, timedelta
-from typing import Dict
+from typing import Dict, List
 
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -43,16 +43,16 @@ def _parse_brl_value(value: str) -> float:
       "R$ 1.000" / "1000" / "1.000,50" / "1000,50" / "2500" / "2.500"
     para float (em reais).
 
-    ✅ Corrige bug: "1.000" tem que virar 1000.0 (milhar), não 1.0
+    ✅ Corrige o bug clássico:
+      "1.000" não pode virar 1.0 (float), tem que virar 1000.0
     """
-    if value is None:
+    if not value:
         return 0.0
 
     s = str(value).strip()
     if not s:
         return 0.0
 
-    # remove tudo que não for número, ponto ou vírgula
     s = re.sub(r"[^0-9\.,]", "", s)
     if not s:
         return 0.0
@@ -66,17 +66,15 @@ def _parse_brl_value(value: str) -> float:
             return 0.0
 
     # Caso 2: não tem vírgula, mas tem ponto.
-    # Normal no BR é ponto como milhar: "1.000" / "2.500" -> remover pontos.
+    # No BR, ponto é milhar: "1.000" -> 1000
     if "." in s:
         parts = s.split(".")
-        # se parecer decimal (ex: 1000.50), mantém
         if len(parts) == 2 and len(parts[1]) in (1, 2):
             try:
                 return float(s)
             except Exception:
                 return 0.0
 
-        # senão, trata ponto como milhar
         s = s.replace(".", "")
         try:
             return float(s)
@@ -91,9 +89,7 @@ def _parse_brl_value(value: str) -> float:
 
 
 def _money_brl(v: float) -> str:
-    # formata simples (sem locale)
     s = f"{v:,.2f}"
-    # s vem 1,234.56 -> vira 1.234,56
     s = s.replace(",", "X").replace(".", ",").replace("X", ".")
     return f"R$ {s}"
 
@@ -133,7 +129,6 @@ def dashboard(request: Request):
         if not user.is_pro:
             remaining = max(0, FREE_LIMIT_TOTAL_BUDGETS - total)
 
-        # ===== METRICS (mês) =====
         month_budgets = [
             b for b in budgets
             if b.created_at
@@ -148,7 +143,6 @@ def dashboard(request: Request):
         won_value = sum(_parse_brl_value(b.value or "") for b in won)
         lost_value = sum(_parse_brl_value(b.value or "") for b in lost)
 
-        # ✅ Conversão correta: fechados / total de orçamentos do mês
         total_month = len(month_budgets)
         conversion_pct = (len(won) / total_month * 100.0) if total_month > 0 else 0.0
 
@@ -159,11 +153,7 @@ def dashboard(request: Request):
             "month_lost_count": len(lost),
             "month_conversion_pct": f"{conversion_pct:.0f}%",
             "month_total_count": len(month_budgets),
-
-            # ✅ bate com dashboard.html ({{ metrics.month_awaiting }})
             "month_awaiting": len(awaiting),
-
-            # compat
             "month_awaiting_count": len(awaiting),
         }
 
@@ -380,7 +370,6 @@ def reports_page(request: Request):
     won_value = sum(_parse_brl_value(b.value or "") for b in won_budgets)
     lost_value = sum(_parse_brl_value(b.value or "") for b in lost_budgets)
 
-    # ✅ Conversão consistente: fechados / total (últimas 6 semanas)
     total_last = len(last_budgets)
     conversion = (len(won_budgets) / total_last * 100.0) if total_last > 0 else 0.0
 
@@ -424,33 +413,139 @@ def reports_page(request: Request):
     )
 
 
-# ✅ ROTA TEMPORÁRIA (fica FORA de outras funções)
+# =========================
+# AQUISIÇÃO (GET + POST)
+# =========================
+
+def _generate_acquisition_messages(nicho: str, cidade: str, servico: str, mode: str) -> List[str]:
+    nicho = (nicho or "").strip()
+    cidade = (cidade or "").strip()
+    servico = (servico or "").strip()
+    mode = (mode or "media").strip().lower()
+
+    if mode not in {"curta", "media", "agressiva"}:
+        mode = "media"
+
+    if mode == "curta":
+        return [
+            f"Oi! Vi seu negócio de {nicho} em {cidade}. Você faz {servico} com frequência? Posso te mandar uma proposta rápida?",
+            f"Olá! Trabalho com {servico} para {nicho} em {cidade}. Quer que eu te envie um orçamento sem compromisso?",
+            f"Oi, tudo bem? Atendo {cidade} com {servico}. Se fizer sentido, te mando valores e prazos hoje.",
+            f"Olá! Você está buscando melhorar {servico} aí em {cidade}? Posso te mandar uma proposta objetiva.",
+            f"Oi! Posso te ajudar com {servico}. Quer uma estimativa rápida ainda hoje?",
+            f"Olá! Atendo {nicho} em {cidade} com {servico}. Posso te chamar no WhatsApp e alinhar em 2 min?",
+            f"Oi! Tenho uma solução de {servico} que costuma dar resultado rápido. Quer detalhes?",
+            f"Olá! Consigo atender {cidade}. Se me disser o tamanho/quantidade, te mando preço certinho.",
+            f"Oi! Posso te passar uma proposta de {servico} hoje. Pode me dizer o que você precisa?",
+            f"Olá! Se quiser, te mando 2 opções de orçamento (econômica e premium) para {servico}.",
+        ]
+
+    if mode == "agressiva":
+        return [
+            f"Olá! Sou especialista em {servico} para {nicho} em {cidade}. Consigo te entregar isso com prazo curto. Quer fechar um orçamento hoje?",
+            f"Oi! Tenho agenda essa semana em {cidade}. Se você precisa de {servico}, posso reservar um horário pra você ainda hoje. Quer que eu te mande a proposta?",
+            f"Olá! Se você quer resolver {servico} sem dor de cabeça, eu faço o serviço completo. Me diz o que você precisa e eu te passo o valor agora.",
+            f"Oi! Posso te mandar um orçamento com 2 opções e condições pra fechar ainda hoje. É sobre {servico} aí em {cidade}?",
+            f"Olá! Atendo {cidade} e consigo começar rápido. Quer que eu te envie a proposta e já deixar um horário pré-reservado?",
+            f"Oi! Se você me responder com 3 infos (tamanho, local e urgência), eu te retorno com valor fechado hoje. É sobre {servico}?",
+            f"Olá! Tenho um modelo de execução que reduz retrabalho e acelera entrega de {servico}. Quer a proposta completa?",
+            f"Oi! Consigo te atender sem enrolação: orçamento + prazo + forma de pagamento. Quer que eu envie agora?",
+            f"Olá! Se você quer resultado, eu faço {servico} com padrão profissional e garantia do combinado. Posso te enviar a proposta agora?",
+            f"Oi! Posso encaixar você na agenda de {cidade}. Me confirma se é {servico} e eu já te mando valores.",
+        ]
+
+    # media
+    return [
+        f"Olá! Tudo bem? Vi que você atua com {nicho} em {cidade}. Eu trabalho com {servico} e posso te ajudar. Posso te mandar uma proposta?",
+        f"Oi! Eu atendo {cidade} com {servico}. Se você me disser rapidamente o que está precisando, eu preparo um orçamento com prazo e formas de pagamento.",
+        f"Olá! Posso te ajudar com {servico}. Geralmente faço uma avaliação rápida e já retorno com valores. Quer que eu te envie por aqui?",
+        f"Oi, tudo bem? Tenho experiência atendendo clientes de {nicho} em {cidade}. Se fizer sentido, te mando um orçamento objetivo para {servico}.",
+        f"Olá! Se você quiser, eu te passo duas opções (econômica e completa) para {servico}. Pode me dizer qual é a urgência?",
+        f"Oi! Para eu te passar um preço certinho de {servico}, você poderia me dizer o tamanho/quantidade e o local em {cidade}?",
+        f"Olá! Eu consigo atender {cidade}. Quer que eu te envie um orçamento e um prazo estimado para {servico}?",
+        f"Oi! Trabalho com {servico} e gosto de alinhar tudo por escrito (valor, prazo e o que está incluso). Posso te mandar uma proposta?",
+        f"Olá! Se preferir, eu te envio um orçamento por WhatsApp com todos os detalhes de {servico}. Pode me passar seu número?",
+        f"Oi! Quer que eu te mande um orçamento rápido e sem compromisso para {servico}? Só preciso de 2 informações básicas.",
+    ]
+
+
+@router.get("/acquisition", response_class=HTMLResponse)
+def acquisition_page(request: Request):
+    flashes = pop_flashes(request)
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+
+    return templates.TemplateResponse(
+        "acquisition.html",
+        {
+            "request": request,
+            "flashes": flashes,
+            "user": user,
+            "now": datetime.now(timezone.utc),
+            "messages": [],
+            "form": {"nicho": "", "cidade": "", "servico": "", "mode": "media"},
+            "mode": "media",
+        },
+    )
+
+
+@router.post("/acquisition/generate", response_class=HTMLResponse)
+def acquisition_generate(
+    request: Request,
+    nicho: str = Form(...),
+    cidade: str = Form(...),
+    servico: str = Form(...),
+    mode: str = Form("media"),
+):
+    flashes = pop_flashes(request)
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+
+    messages = _generate_acquisition_messages(nicho=nicho, cidade=cidade, servico=servico, mode=mode)
+
+    return templates.TemplateResponse(
+        "acquisition.html",
+        {
+            "request": request,
+            "flashes": flashes,
+            "user": user,
+            "now": datetime.now(timezone.utc),
+            "messages": messages,
+            "form": {"nicho": nicho, "cidade": cidade, "servico": servico, "mode": mode},
+            "mode": mode,
+        },
+    )
+
+
+# =========================
+# MAKE ADMIN (TEMP)
+# =========================
+
 @router.get("/make-admin")
 def make_admin(request: Request):
     """
-    Rota temporária para transformar o usuário logado em ADMIN + PRO.
-    Acesse uma vez e depois REMOVA.
+    Rota temporária para transformar seu usuário em admin.
+    Acesse uma vez e depois pode remover.
     """
     user_id = get_user_id_from_request(request)
     if not user_id:
         return {"error": "not logged"}
 
-    try:
-        uid = int(user_id)
-    except Exception:
-        return {"error": "invalid user id"}
-
     with SessionLocal() as db:
-        user = db.get(User, uid)
+        user = db.get(User, int(user_id))
         if not user:
             return {"error": "user not found"}
 
-        # ajuste se seus campos tiverem nomes diferentes
-        if hasattr(user, "is_admin"):
-            user.is_admin = True
-        if hasattr(user, "is_pro"):
-            user.is_pro = True
-
+        user.is_admin = True
+        user.is_pro = True
         db.commit()
 
     return {"success": True, "message": "Você agora é admin e premium"}

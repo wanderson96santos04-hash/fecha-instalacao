@@ -1,6 +1,8 @@
 ﻿{% extends "base.html" %}
 
 {% block body %}
+{% include "partials/nav_app.html" %}
+
 {% set f = form|default({'nicho':'','cidade':'','servico':'','mode':'media'}) %}
 {% set m = (f.mode if f is defined and f.mode is defined else (mode|default('media'))) %}
 
@@ -18,8 +20,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
       <!-- FORM -->
       <section class="bg-white/80 backdrop-blur rounded-2xl shadow-lg border border-slate-200 p-6 md:p-7">
-        <form method="post" action="/acquisition/generate" class="space-y-5">
-          <!-- se você usa CSRF, descomente e ajuste conforme seu projeto -->
+        <form method="post" action="/app/acquisition/generate" class="space-y-5">
           {# <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> #}
 
           <div>
@@ -120,13 +121,12 @@
                   <button
                     type="button"
                     class="copyBtn inline-flex items-center gap-2 rounded-lg bg-slate-900 text-white px-3 py-1.5 text-sm font-semibold hover:bg-slate-800"
-                    data-message="{{ msg|e }}"
                   >
                     Copiar
                   </button>
                 </div>
 
-                <div class="text-slate-900 leading-relaxed whitespace-pre-line">
+                <div class="whitespace-pre-line text-slate-900 leading-relaxed">
                   {{ msg }}
                 </div>
               </article>
@@ -173,7 +173,7 @@
       }
     };
 
-    // Copiar individual (pega o texto do card, mais seguro que data-attribute)
+    // Copiar individual
     document.querySelectorAll(".copyBtn").forEach((btn) => {
       btn.addEventListener("click", () => {
         const card = btn.closest("article");
