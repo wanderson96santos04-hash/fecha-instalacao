@@ -44,7 +44,7 @@ def _parse_brl_value(value: str) -> float:
     para float (em reais).
 
     ✅ Corrige o bug clássico:
-      "1.000" não pode virar 1.0 (float), tem que virar 1000.0
+      "1.000" não pode virar 1.0, tem que virar 1000.0
     """
     if not value:
         return 0.0
@@ -57,7 +57,6 @@ def _parse_brl_value(value: str) -> float:
     if not s:
         return 0.0
 
-    # Caso 1: tem vírgula -> vírgula é decimal no BR (remove pontos de milhar)
     if "," in s:
         s = s.replace(".", "").replace(",", ".")
         try:
@@ -65,8 +64,6 @@ def _parse_brl_value(value: str) -> float:
         except Exception:
             return 0.0
 
-    # Caso 2: não tem vírgula, mas tem ponto.
-    # No BR, ponto é milhar: "1.000" -> 1000
     if "." in s:
         parts = s.split(".")
         if len(parts) == 2 and len(parts[1]) in (1, 2):
@@ -81,7 +78,6 @@ def _parse_brl_value(value: str) -> float:
         except Exception:
             return 0.0
 
-    # Caso 3: só número
     try:
         return float(s)
     except Exception:
@@ -315,10 +311,6 @@ def upgrade_page(request: Request):
 
 @router.get("/checkout")
 def checkout_redirect(request: Request):
-    """
-    Redireciona para o checkout da Kiwify via ENV:
-      KIWIFY_CHECKOUT_URL="https://pay.kiwify.com.br/SEU_CHECKOUT"
-    """
     uid = _require_user(request)
 
     checkout_url = (os.getenv("KIWIFY_CHECKOUT_URL") or "").strip()
@@ -414,59 +406,48 @@ def reports_page(request: Request):
 
 
 # =========================
-# AQUISIÇÃO (GET + POST)
+# ✅ AQUISIÇÃO (PRO)
 # =========================
 
-def _generate_acquisition_messages(nicho: str, cidade: str, servico: str, mode: str) -> List[str]:
-    nicho = (nicho or "").strip()
-    cidade = (cidade or "").strip()
-    servico = (servico or "").strip()
+def _acq_generate(nicho: str, cidade: str, servico: str, mode: str) -> List[str]:
+    n = (nicho or "").strip()
+    c = (cidade or "").strip()
+    s = (servico or "").strip()
     mode = (mode or "media").strip().lower()
 
     if mode not in {"curta", "media", "agressiva"}:
         mode = "media"
 
-    if mode == "curta":
-        return [
-            f"Oi! Vi seu negócio de {nicho} em {cidade}. Você faz {servico} com frequência? Posso te mandar uma proposta rápida?",
-            f"Olá! Trabalho com {servico} para {nicho} em {cidade}. Quer que eu te envie um orçamento sem compromisso?",
-            f"Oi, tudo bem? Atendo {cidade} com {servico}. Se fizer sentido, te mando valores e prazos hoje.",
-            f"Olá! Você está buscando melhorar {servico} aí em {cidade}? Posso te mandar uma proposta objetiva.",
-            f"Oi! Posso te ajudar com {servico}. Quer uma estimativa rápida ainda hoje?",
-            f"Olá! Atendo {nicho} em {cidade} com {servico}. Posso te chamar no WhatsApp e alinhar em 2 min?",
-            f"Oi! Tenho uma solução de {servico} que costuma dar resultado rápido. Quer detalhes?",
-            f"Olá! Consigo atender {cidade}. Se me disser o tamanho/quantidade, te mando preço certinho.",
-            f"Oi! Posso te passar uma proposta de {servico} hoje. Pode me dizer o que você precisa?",
-            f"Olá! Se quiser, te mando 2 opções de orçamento (econômica e premium) para {servico}.",
-        ]
+    base = {
+        "curta": [
+            f"Oi! Vi que você trabalha com *{n}* aí em *{c}*. Você faz *{s}*? Se quiser, eu te mando um orçamento rapidinho.",
+            f"Olá! Sou da área de *{s}* e atendo *{c}*. Posso te passar um valor hoje ainda, sem compromisso.",
+            f"Oi! Atendo *{c}* com *{s}*. Quer que eu te mande um orçamento por WhatsApp?",
+        ],
+        "media": [
+            f"Olá! Tudo bem? Vi seu trabalho de *{n}* em *{c}* e queria saber se você está pegando serviço de *{s}* agora. Se sim, posso te mandar um orçamento bem rápido.",
+            f"Oi! Eu trabalho com *{s}* aqui em *{c}*. Se você quiser, eu faço uma avaliação e já te passo um valor certinho (sem compromisso).",
+            f"Olá! Se você estiver em *{c}* e precisar de *{s}*, eu consigo te atender essa semana. Quer que eu te envie uma proposta?",
+        ],
+        "agressiva": [
+            f"Oi! Posso resolver *{s}* pra você em *{c}* ainda essa semana. Me diz: é pra quando? Se me passar os detalhes, eu já fecho um valor agora.",
+            f"Olá! Eu faço *{s}* em *{c}*. Se você me confirmar hoje, eu consigo encaixar e finalizar rápido. Quer orçamento agora?",
+            f"Oi! Se for *{s}* em *{c}*, eu consigo te atender com prioridade. Me manda só 2 infos e eu já te passo o valor pra fechar.",
+        ],
+    }
 
-    if mode == "agressiva":
-        return [
-            f"Olá! Sou especialista em {servico} para {nicho} em {cidade}. Consigo te entregar isso com prazo curto. Quer fechar um orçamento hoje?",
-            f"Oi! Tenho agenda essa semana em {cidade}. Se você precisa de {servico}, posso reservar um horário pra você ainda hoje. Quer que eu te mande a proposta?",
-            f"Olá! Se você quer resolver {servico} sem dor de cabeça, eu faço o serviço completo. Me diz o que você precisa e eu te passo o valor agora.",
-            f"Oi! Posso te mandar um orçamento com 2 opções e condições pra fechar ainda hoje. É sobre {servico} aí em {cidade}?",
-            f"Olá! Atendo {cidade} e consigo começar rápido. Quer que eu te envie a proposta e já deixar um horário pré-reservado?",
-            f"Oi! Se você me responder com 3 infos (tamanho, local e urgência), eu te retorno com valor fechado hoje. É sobre {servico}?",
-            f"Olá! Tenho um modelo de execução que reduz retrabalho e acelera entrega de {servico}. Quer a proposta completa?",
-            f"Oi! Consigo te atender sem enrolação: orçamento + prazo + forma de pagamento. Quer que eu envie agora?",
-            f"Olá! Se você quer resultado, eu faço {servico} com padrão profissional e garantia do combinado. Posso te enviar a proposta agora?",
-            f"Oi! Posso encaixar você na agenda de {cidade}. Me confirma se é {servico} e eu já te mando valores.",
-        ]
-
-    # media
-    return [
-        f"Olá! Tudo bem? Vi que você atua com {nicho} em {cidade}. Eu trabalho com {servico} e posso te ajudar. Posso te mandar uma proposta?",
-        f"Oi! Eu atendo {cidade} com {servico}. Se você me disser rapidamente o que está precisando, eu preparo um orçamento com prazo e formas de pagamento.",
-        f"Olá! Posso te ajudar com {servico}. Geralmente faço uma avaliação rápida e já retorno com valores. Quer que eu te envie por aqui?",
-        f"Oi, tudo bem? Tenho experiência atendendo clientes de {nicho} em {cidade}. Se fizer sentido, te mando um orçamento objetivo para {servico}.",
-        f"Olá! Se você quiser, eu te passo duas opções (econômica e completa) para {servico}. Pode me dizer qual é a urgência?",
-        f"Oi! Para eu te passar um preço certinho de {servico}, você poderia me dizer o tamanho/quantidade e o local em {cidade}?",
-        f"Olá! Eu consigo atender {cidade}. Quer que eu te envie um orçamento e um prazo estimado para {servico}?",
-        f"Oi! Trabalho com {servico} e gosto de alinhar tudo por escrito (valor, prazo e o que está incluso). Posso te mandar uma proposta?",
-        f"Olá! Se preferir, eu te envio um orçamento por WhatsApp com todos os detalhes de {servico}. Pode me passar seu número?",
-        f"Oi! Quer que eu te mande um orçamento rápido e sem compromisso para {servico}? Só preciso de 2 informações básicas.",
+    extras = [
+        f"Oi! Vi seu perfil e achei top. Você está em *{c}*? Se precisar de *{s}*, eu consigo te mandar um orçamento ainda hoje.",
+        f"Olá! Estou atendendo *{c}* com *{s}*. Quer que eu te passe 2 opções de valor (econômico e completo) pra você escolher?",
+        f"Oi! Trabalho com *{s}* em *{c}*. Posso te mandar um valor fechado + prazo. É pra casa ou empresa?",
+        f"Olá! Se for *{s}* em *{c}*, eu te mando o orçamento agora e já digo o prazo certinho. Pode ser?",
+        f"Oi! Eu faço *{s}* em *{c}* e consigo atendimento rápido. Me diga só: qual tamanho/quantidade pra eu calcular?",
+        f"Olá! Você trabalha com *{n}* aí em *{c}*? Tenho uma solução boa pra *{s}* — quer que eu te explique em 30s aqui?",
+        f"Oi! Se você estiver em *{c}* e quiser *{s}* com garantia e prazo, me manda uma foto/medida que eu já calculo.",
     ]
+
+    msgs = base[mode] + extras
+    return msgs[:10]
 
 
 @router.get("/acquisition", response_class=HTMLResponse)
@@ -478,6 +459,8 @@ def acquisition_page(request: Request):
         user = db.get(User, uid)
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
+        if not user.is_pro:
+            return redirect("/app/upgrade", kind="error", message="Aquisição é Premium (PRO).")
 
     return templates.TemplateResponse(
         "acquisition.html",
@@ -508,8 +491,10 @@ def acquisition_generate(
         user = db.get(User, uid)
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
+        if not user.is_pro:
+            return redirect("/app/upgrade", kind="error", message="Aquisição é Premium (PRO).")
 
-    messages = _generate_acquisition_messages(nicho=nicho, cidade=cidade, servico=servico, mode=mode)
+    messages = _acq_generate(nicho=nicho, cidade=cidade, servico=servico, mode=mode)
 
     return templates.TemplateResponse(
         "acquisition.html",
@@ -526,9 +511,8 @@ def acquisition_generate(
 
 
 # =========================
-# MAKE ADMIN (TEMP)
+# ✅ MAKE ADMIN (TEMP)
 # =========================
-
 @router.get("/make-admin")
 def make_admin(request: Request):
     """
