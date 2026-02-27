@@ -13,8 +13,11 @@ from app.routes.auth import router as auth_router
 from app.routes.app import router as app_router
 from app.routes.webhook import router as webhook_router
 
-# ✅ ADICIONADO
+# ✅ ADICIONADO (já estava)
 from app.routes import retention
+
+# ✅ ADICIONADO AGORA: upgrade router (pra existir /app/checkout)
+from app.routes import upgrade
 
 app = FastAPI(title="FECHA INSTALAÇÃO", version="0.1.0")
 print(">>> MAIN.PY LOADED (with premium_gate + modules)")
@@ -109,8 +112,11 @@ app.include_router(auth_router)
 app.include_router(app_router)
 app.include_router(webhook_router)
 
-# ✅ AGORA INCLUI O RETENTION ROUTER
+# ✅ ROUTERS DOS MÓDULOS
 app.include_router(retention.router)
+
+# ✅ AGORA INCLUI O UPGRADE ROUTER (onde está /app/checkout)
+app.include_router(upgrade.router)
 
 
 @app.exception_handler(401)
