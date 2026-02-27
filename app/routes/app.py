@@ -277,9 +277,6 @@ def invite_page(request: Request):
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-    # Esses valores precisam existir porque o template do módulo usa:
-    # {{ invite_link }}, {{ copy_count }}, {{ click_count }}, {{ share_text }}
-    # Depois você liga isso no services.py do módulo invite.
     invite_link = "https://fecha-instalacao.onrender.com/signup"
     copy_count = 0
     click_count = 0
@@ -331,20 +328,8 @@ def social_proof_page(request: Request):
     )
 
 
-@router.get("/upgrade", response_class=HTMLResponse)
-def upgrade_page(request: Request):
-    flashes = pop_flashes(request)
-    uid = _require_user(request)
-
-    with SessionLocal() as db:
-        user = db.get(User, uid)
-        if not user:
-            return redirect("/login", kind="error", message="Faça login novamente.")
-
-    return templates.TemplateResponse(
-        "upgrade.html",
-        {"request": request, "flashes": flashes, "user": user},
-    )
+# ✅ REMOVIDO AQUI: rota /app/upgrade duplicada
+# Ela deve ficar SOMENTE em app/routes/upgrade.py (com /app/checkout).
 
 
 # =========================
@@ -381,3 +366,7 @@ def budgets_new_page(request: Request):
             "can_create_budget": can_create_budget,
         },
     )
+
+# ⚠️ Se no seu arquivo existe mais código abaixo daqui:
+# mantenha tudo exatamente como está.
+# A única alteração necessária foi remover a rota duplicada /upgrade.
