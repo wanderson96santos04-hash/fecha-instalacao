@@ -250,18 +250,9 @@ def acquisition_generate(
 
 @router.get("/onboarding", response_class=HTMLResponse)
 def onboarding_page(request: Request):
-    flashes = pop_flashes(request)
-    uid = _require_user(request)
-
-    with SessionLocal() as db:
-        user = db.get(User, uid)
-        if not user:
-            return redirect("/login", kind="error", message="Faça login novamente.")
-
-    return templates.TemplateResponse(
-        "dashboard.html",
-        {"request": request, "flashes": flashes, "user": user},
-    )
+    # CORRIGIDO: não renderiza dashboard.html aqui (ele exige variáveis)
+    # Apenas redireciona para a rota principal que já funciona.
+    return RedirectResponse(url="/app", status_code=302)
 
 
 @router.get("/invite", response_class=HTMLResponse)
@@ -269,25 +260,15 @@ def invite_page(request: Request):
     flashes = pop_flashes(request)
     uid = _require_user(request)
 
-    now = datetime.now(timezone.utc)
-    # Janela padrão (últimos 30 dias) só pra não quebrar o template
-    start = now - timedelta(days=30)
-    end = now
-
     with SessionLocal() as db:
         user = db.get(User, uid)
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
+    # CORRIGIDO: página simples para "Indique" não quebrar
     return templates.TemplateResponse(
-        "retention/retention.html",
-        {
-            "request": request,
-            "flashes": flashes,
-            "user": user,
-            "start": start,
-            "end": end,
-        },
+        "invite.html",
+        {"request": request, "flashes": flashes, "user": user},
     )
 
 
