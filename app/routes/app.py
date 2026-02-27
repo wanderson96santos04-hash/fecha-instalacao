@@ -243,3 +243,85 @@ def acquisition_generate(
             "mode": mode,
         },
     )
+
+
+# =========================
+# ROTAS QUE ESTAVAM FALTANDO
+# =========================
+
+@router.get("/onboarding", response_class=HTMLResponse)
+def onboarding_page(request: Request):
+    flashes = pop_flashes(request)
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+
+    # Se você tiver um template específico "onboarding.html", troque aqui.
+    # Pelo seu print, o botão vai para /app/onboarding.
+    return templates.TemplateResponse(
+        "dashboard.html",
+        {"request": request, "flashes": flashes, "user": user},
+    )
+
+
+@router.get("/invite", response_class=HTMLResponse)
+def invite_page(request: Request):
+    flashes = pop_flashes(request)
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+
+    # Se existir um template "invite.html", troque aqui.
+    return templates.TemplateResponse(
+        "acquisition.html",
+        {
+            "request": request,
+            "flashes": flashes,
+            "user": user,
+            "now": datetime.now(timezone.utc),
+            "messages": [],
+            "form": {"nicho": "", "cidade": "", "servico": "", "mode": "media"},
+            "mode": "media",
+        },
+    )
+
+
+@router.get("/cases", response_class=HTMLResponse)
+def cases_page(request: Request):
+    flashes = pop_flashes(request)
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+
+    return templates.TemplateResponse(
+        "cases.html",
+        {"request": request, "flashes": flashes, "user": user},
+    )
+
+
+@router.get("/social-proof", response_class=HTMLResponse)
+def social_proof_page(request: Request):
+    flashes = pop_flashes(request)
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+
+    # Você tem uma pasta app/templates/social_proof/
+    # Então geralmente o arquivo fica algo tipo "social_proof/index.html" ou "social_proof/social_proof.html".
+    # Eu coloquei o nome mais provável; ajuste se o nome do arquivo for diferente.
+    return templates.TemplateResponse(
+        "social_proof/social_proof.html",
+        {"request": request, "flashes": flashes, "user": user},
+    )
