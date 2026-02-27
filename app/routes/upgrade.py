@@ -16,14 +16,11 @@ templates = Jinja2Templates(directory="app/templates")
 
 
 def _get_checkout_url() -> str:
-    """
-    Pega o checkout sem quebrar o app:
-    1) tenta settings.KIWIFY_CHECKOUT_URL (se existir)
-    2) tenta env KIWIFY_CHECKOUT_URL
-    """
-    url = (getattr(settings, "KIWIFY_CHECKOUT_URL", "") or "").strip()
+    # ✅ Não quebra se o Settings não tiver o atributo
+    url = (getattr(settings, "KIWIFY_CHECKOUT_URL", None) or "").strip()
     if not url:
-        url = (os.getenv("KIWIFY_CHECKOUT_URL", "") or "").strip()
+        # ✅ fallback direto do ambiente (Render > Environment)
+        url = (os.getenv("KIWIFY_CHECKOUT_URL") or "").strip()
     return url
 
 
