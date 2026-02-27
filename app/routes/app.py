@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import re
 from datetime import datetime, timezone, timedelta
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -23,14 +23,9 @@ templates = Jinja2Templates(directory="app/templates")
 
 
 def _require_user(request: Request) -> int:
-    """
-    Lê o cookie de sessão e devolve o user_id como INT.
-    Isso evita erro do Postgres (integer = varchar) em filtros como Budget.user_id == uid.
-    """
     uid_raw = get_user_id_from_request(request)
     if not uid_raw:
         raise HTTPException(status_code=401)
-
     try:
         return int(uid_raw)
     except (TypeError, ValueError):
@@ -38,17 +33,8 @@ def _require_user(request: Request) -> int:
 
 
 def _parse_brl_value(value: str) -> float:
-    """
-    Converte strings tipo:
-      "R$ 1.000" / "1000" / "1.000,50" / "1000,50" / "2500" / "2.500"
-    para float (em reais).
-
-    ✅ Corrige o bug clássico:
-      "1.000" não pode virar 1.0, tem que virar 1000.0
-    """
     if not value:
         return 0.0
-
     s = str(value).strip()
     if not s:
         return 0.0
@@ -215,7 +201,7 @@ def new_budget_action(
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-        ok, total = can_create_budget(db, user)
+        ok, _total = can_create_budget(db, user)
         if not ok:
             return redirect(
                 "/app",
@@ -319,135 +305,63 @@ def checkout_redirect(request: Request):
 
     sep = "&" if "?" in checkout_url else "?"
     url = f"{checkout_url}{sep}ref=uid_{uid}"
-
     return RedirectResponse(url=url, status_code=302)
-
-
-@router.get("/reports", response_class=HTMLResponse)
-def reports_page(request: Request):
-    flashes = pop_flashes(request)
-    uid = _require_user(request)
-
-    now = datetime.now(timezone.utc)
-    last_6_weeks = now - timedelta(days=42)
-
-    with SessionLocal() as db:
-        user = db.get(User, uid)
-        if not user:
-            return redirect("/login", kind="error", message="Faça login novamente.")
-
-        if not user.is_pro:
-            return redirect("/app/upgrade", kind="error", message="Relatórios é Premium.")
-
-        budgets = list(
-            db.scalars(
-                select(Budget)
-                .where(Budget.user_id == uid)
-                .order_by(desc(Budget.created_at), desc(Budget.id))
-            ).all()
-        )
-
-    last_budgets = []
-    for b in budgets:
-        if not b.created_at:
-            continue
-        dt = b.created_at.replace(tzinfo=timezone.utc)
-        if dt < last_6_weeks:
-            continue
-        last_budgets.append(b)
-
-    won_budgets = [b for b in last_budgets if (b.status or "").strip().lower() == "won"]
-    lost_budgets = [b for b in last_budgets if (b.status or "").strip().lower() == "lost"]
-
-    won_value = sum(_parse_brl_value(b.value or "") for b in won_budgets)
-    lost_value = sum(_parse_brl_value(b.value or "") for b in lost_budgets)
-
-    total_last = len(last_budgets)
-    conversion = (len(won_budgets) / total_last * 100.0) if total_last > 0 else 0.0
-
-    kpis = {
-        "won_value": round(won_value, 2),
-        "lost_value": round(lost_value, 2),
-        "won": len(won_budgets),
-        "lost": len(lost_budgets),
-        "conversion": round(conversion, 1),
-    }
-
-    week_map: Dict[str, float] = {}
-    for b in won_budgets:
-        dt = b.created_at.replace(tzinfo=timezone.utc)
-        year, week, _ = dt.isocalendar()
-        key = f"{year}-W{week:02d}"
-        week_map[key] = week_map.get(key, 0.0) + _parse_brl_value(b.value or "")
-
-    week_items = sorted(week_map.items(), key=lambda x: x[0])
-    chart_labels = [k for k, _ in week_items] or []
-    chart_values = [round(v, 2) for _, v in week_items] or []
-
-    service_map: Dict[str, int] = {}
-    for b in won_budgets:
-        service = (b.service_type or "").strip() or "Sem categoria"
-        service_map[service] = service_map.get(service, 0) + 1
-
-    ranking = sorted(service_map.items(), key=lambda x: x[1], reverse=True)[:8]
-
-    return templates.TemplateResponse(
-        "reports.html",
-        {
-            "request": request,
-            "flashes": flashes,
-            "user": user,
-            "kpis": kpis,
-            "chart_labels": chart_labels,
-            "chart_values": chart_values,
-            "ranking": ranking,
-        },
-    )
 
 
 # =========================
 # ✅ AQUISIÇÃO (PRO)
 # =========================
 
-def _acq_generate(nicho: str, cidade: str, servico: str, mode: str) -> List[str]:
-    n = (nicho or "").strip()
-    c = (cidade or "").strip()
-    s = (servico or "").strip()
+def _build_acquisition_messages(nicho: str, cidade: str, servico: str, mode: str) -> List[str]:
+    nicho = nicho.strip()
+    cidade = cidade.strip()
+    servico = servico.strip()
     mode = (mode or "media").strip().lower()
 
-    if mode not in {"curta", "media", "agressiva"}:
-        mode = "media"
+    if mode == "curta":
+        templates_list = [
+            f"Oi! Vi que você trabalha com {nicho} em {cidade}. Você já tem alguém cuidando de {servico} com garantia e prazo? Se quiser, te passo uma proposta rápida.",
+            f"Olá! {servico} para {nicho} em {cidade}: consigo te atender essa semana. Quer que eu te mande valores e prazo?",
+            f"Fala! Atendo {servico} aí em {cidade}. Qual o melhor horário pra eu te mandar uma estimativa e tirar 2 dúvidas rápidas?",
+            f"Oi, tudo bem? Trabalho com {servico} focado em {nicho} em {cidade}. Posso te mandar uma opção de orçamento hoje?",
+            f"Olá! Você tem demanda de {servico} aí em {cidade}? Se sim, me diga só o tipo e eu te retorno com prazo e valor.",
+            f"Oi! {cidade} — {servico} para {nicho}. Se você me disser o tamanho/quantidade, eu já te passo uma base agora.",
+            f"Olá! Estou com agenda aberta em {cidade}. Quer que eu te envie uma proposta de {servico} para {nicho}?",
+            f"Fala! Se você precisar de {servico} (nicho {nicho}) em {cidade}, eu resolvo do começo ao fim. Quer detalhes?",
+            f"Oi! Posso te atender em {cidade} com {servico}. Se preferir, mando um orçamento em 3 linhas agora.",
+            f"Olá! Você quer reduzir dor de cabeça com {servico} no seu {nicho}? Me diz “sim” que eu te mando a proposta.",
+        ]
+        return templates_list
 
-    base = {
-        "curta": [
-            f"Oi! Vi que você trabalha com *{n}* aí em *{c}*. Você faz *{s}*? Se quiser, eu te mando um orçamento rapidinho.",
-            f"Olá! Sou da área de *{s}* e atendo *{c}*. Posso te passar um valor hoje ainda, sem compromisso.",
-            f"Oi! Atendo *{c}* com *{s}*. Quer que eu te mande um orçamento por WhatsApp?",
-        ],
-        "media": [
-            f"Olá! Tudo bem? Vi seu trabalho de *{n}* em *{c}* e queria saber se você está pegando serviço de *{s}* agora. Se sim, posso te mandar um orçamento bem rápido.",
-            f"Oi! Eu trabalho com *{s}* aqui em *{c}*. Se você quiser, eu faço uma avaliação e já te passo um valor certinho (sem compromisso).",
-            f"Olá! Se você estiver em *{c}* e precisar de *{s}*, eu consigo te atender essa semana. Quer que eu te envie uma proposta?",
-        ],
-        "agressiva": [
-            f"Oi! Posso resolver *{s}* pra você em *{c}* ainda essa semana. Me diz: é pra quando? Se me passar os detalhes, eu já fecho um valor agora.",
-            f"Olá! Eu faço *{s}* em *{c}*. Se você me confirmar hoje, eu consigo encaixar e finalizar rápido. Quer orçamento agora?",
-            f"Oi! Se for *{s}* em *{c}*, eu consigo te atender com prioridade. Me manda só 2 infos e eu já te passo o valor pra fechar.",
-        ],
-    }
+    if mode == "agressiva":
+        templates_list = [
+            f"Oi! {cidade}. Eu cuido de {servico} pra {nicho} com prazo fechado e garantia. Se eu te mandar um orçamento hoje, você consegue me responder ainda hoje?",
+            f"Olá — trabalho com {servico} pra {nicho} em {cidade}. Tenho 2 horários livres essa semana. Quer reservar antes que feche a agenda?",
+            f"Fala! Se {servico} tá travando algo aí no seu {nicho} em {cidade}, eu resolvo rápido. Me diz o que precisa e eu já te passo prazo + valor.",
+            f"Oi! Eu consigo iniciar {servico} em {cidade} em até 48h (dependendo do volume). Quer que eu mande a proposta agora?",
+            f"Olá! {servico} pra {nicho} em {cidade}: faço com checklist e entrego pronto. Se eu te mandar valores, você decide hoje?",
+            f"Fala! Tenho um pacote direto pra {nicho} em {cidade} (inclui {servico}). Quer receber 2 opções: econômica e completa?",
+            f"Oi! Posso assumir {servico} aí em {cidade} e te livrar disso essa semana. Qual a melhor forma: te mando no WhatsApp ou aqui mesmo?",
+            f"Olá! Se você quer fechar {servico} sem enrolação: me diga o tamanho/quantidade e eu envio um preço fechado agora.",
+            f"Fala! Atendo {nicho} em {cidade}. Se você topar, eu te mando proposta + garantia + prazo ainda hoje e você só aprova.",
+            f"Oi! Se {servico} é prioridade no seu {nicho} em {cidade}, eu consigo te atender primeiro. Quer que eu te ligue 2 minutos ou prefere texto?",
+        ]
+        return templates_list
 
-    extras = [
-        f"Oi! Vi seu perfil e achei top. Você está em *{c}*? Se precisar de *{s}*, eu consigo te mandar um orçamento ainda hoje.",
-        f"Olá! Estou atendendo *{c}* com *{s}*. Quer que eu te passe 2 opções de valor (econômico e completo) pra você escolher?",
-        f"Oi! Trabalho com *{s}* em *{c}*. Posso te mandar um valor fechado + prazo. É pra casa ou empresa?",
-        f"Olá! Se for *{s}* em *{c}*, eu te mando o orçamento agora e já digo o prazo certinho. Pode ser?",
-        f"Oi! Eu faço *{s}* em *{c}* e consigo atendimento rápido. Me diga só: qual tamanho/quantidade pra eu calcular?",
-        f"Olá! Você trabalha com *{n}* aí em *{c}*? Tenho uma solução boa pra *{s}* — quer que eu te explique em 30s aqui?",
-        f"Oi! Se você estiver em *{c}* e quiser *{s}* com garantia e prazo, me manda uma foto/medida que eu já calculo.",
+    # mode == "media"
+    templates_list = [
+        f"Oi! Tudo bem? Eu trabalho com {servico} voltado pra {nicho} aí em {cidade}. Posso te fazer 2 perguntas rápidas pra entender e te mandar um orçamento certinho?",
+        f"Olá! Vi seu negócio na área de {nicho} em {cidade}. Eu ajudo com {servico} com garantia e prazos bem alinhados. Quer que eu te envie uma proposta?",
+        f"Fala! Atendo {cidade} com {servico} pra {nicho}. Você já tem alguém cuidando disso ou ainda está cotando?",
+        f"Oi! Posso te ajudar com {servico} aí em {cidade}. Qual seria o objetivo principal: reduzir custo, melhorar qualidade ou ganhar velocidade?",
+        f"Olá! Trabalho com {servico} para clientes de {nicho} em {cidade}. Se você me disser o tamanho/quantidade, eu te mando 2 opções (básica e completa).",
+        f"Fala! Tenho um processo bem simples: você me passa as infos, eu envio proposta e, se fizer sentido, já agendamos. Quer seguir assim para {servico} em {cidade}?",
+        f"Oi! Em {cidade}, eu faço {servico} com foco em {nicho}. Você prefere que eu te mande um orçamento “fechado” ou uma estimativa primeiro?",
+        f"Olá! Se você estiver cotando {servico} pra {nicho} aí em {cidade}, posso te mandar uma proposta rápida hoje e ajustar conforme sua necessidade.",
+        f"Fala! Eu atendo {nicho} em {cidade} e consigo te orientar no melhor caminho pra {servico}. Quer que eu te envie um resumo com prazo + valor?",
+        f"Oi! Pra não tomar seu tempo: me diga só (1) bairro/área em {cidade} e (2) o que você precisa em {servico}. Aí eu te retorno com orçamento.",
     ]
-
-    msgs = base[mode] + extras
-    return msgs[:10]
+    return templates_list
 
 
 @router.get("/acquisition", response_class=HTMLResponse)
@@ -459,8 +373,9 @@ def acquisition_page(request: Request):
         user = db.get(User, uid)
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
+
         if not user.is_pro:
-            return redirect("/app/upgrade", kind="error", message="Aquisição é Premium (PRO).")
+            return redirect("/app/upgrade", kind="error", message="Aquisição é Premium.")
 
     return templates.TemplateResponse(
         "acquisition.html",
@@ -471,7 +386,6 @@ def acquisition_page(request: Request):
             "now": datetime.now(timezone.utc),
             "messages": [],
             "form": {"nicho": "", "cidade": "", "servico": "", "mode": "media"},
-            "mode": "media",
         },
     )
 
@@ -492,9 +406,9 @@ def acquisition_generate(
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
         if not user.is_pro:
-            return redirect("/app/upgrade", kind="error", message="Aquisição é Premium (PRO).")
+            return redirect("/app/upgrade", kind="error", message="Aquisição é Premium.")
 
-    messages = _acq_generate(nicho=nicho, cidade=cidade, servico=servico, mode=mode)
+    messages = _build_acquisition_messages(nicho=nicho, cidade=cidade, servico=servico, mode=mode)
 
     return templates.TemplateResponse(
         "acquisition.html",
@@ -511,14 +425,10 @@ def acquisition_generate(
 
 
 # =========================
-# ✅ MAKE ADMIN (TEMP)
+# ✅ ROTA TEMPORÁRIA: MAKE ADMIN + PRO
 # =========================
 @router.get("/make-admin")
 def make_admin(request: Request):
-    """
-    Rota temporária para transformar seu usuário em admin.
-    Acesse uma vez e depois pode remover.
-    """
     user_id = get_user_id_from_request(request)
     if not user_id:
         return {"error": "not logged"}

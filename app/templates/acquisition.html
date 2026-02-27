@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block body %}
+{% include "partials/nav_app.html" %}
+
+{% set f = form|default({'nicho':'','cidade':'','servico':'','mode':'media'}) %}
+{% set m = (f.mode if f is defined and f.mode is defined else (mode|default('media'))) %}
+
+<main class="flex-1">
+  <div class="max-w-6xl mx-auto px-4 py-10">
+    <header class="text-center mb-10">
+      <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900">
+        Módulo de Aquisição
+      </h1>
+      <p class="mt-2 text-slate-600 text-lg">
+        Gerador de mensagens de prospecção para WhatsApp.
+      </p>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <!-- FORM -->
+      <section class="bg-white/80 backdrop-blur rounded-2xl shadow-lg border border-slate-200 p-6 md:p-7">
+        <form method="post" action="/app/acquisition/generate" class="space-y-5">
+          <div>
+            <label class="block text-sm font-semibold text-slate-800 mb-2">Nicho</label>
+            <input
+              name="nicho"
+              value="{{ f.nicho|default('') }}"
+              class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600/30 focus:border-brand-600"
+              placeholder="Ex: Energia Solar"
+              required
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-slate-800 mb-2">Cidade</label>
+            <input
+              name="cidade"
+              value="{{ f.cidade|default('') }}"
+              class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600/30 focus:border-brand-600"
+              placeholder="Ex: São Paulo"
+              required
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-slate-800 mb-2">Tipo de Serviço</label>
+            <input
+              name="servico"
+              value="{{ f.servico|default('') }}"
+              class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600/30 focus:border-brand-600"
+              placeholder="Ex: Instalação residencial"
+              required
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-slate-800 mb-2">
+              Tom da mensagem
+            </label>
+
+            <select
+              name="mode"
+              class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600/30 focus:border-brand-600"
+            >
+              <option value="curta" {% if m == 'curta' %}selected{% endif %}>Curta (direta)</option>
+              <option value="media" {% if m == 'media' %}selected{% endif %}>Média (equilibrada)</option>
+              <option value="agressiva" {% if m == 'agressiva' %}selected{% endif %}>Agressiva (foco em fechamento)</option>
+            </select>
+
+            <p class="mt-2 text-sm text-slate-500">
+              Dica: quanto mais específico (ex: “solda para portão”), melhor fica a prospecção.
+            </p>
+          </div>
+
+          <button
+            type="submit"
+            class="w-full rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold py-3.5 shadow-md shadow-brand-600/20 transition"
+          >
+            Gerar mensagens
+          </button>
+        </form>
+      </section>
+
+      <!-- RESULTS -->
+      <section class="bg-white/80 backdrop-blur rounded-2xl shadow-lg border border-slate-200 p-6 md:p-7">
+        <div class="flex items-center justify-between gap-4">
+          <h2 class="text-xl font-extrabold text-slate-900">Mensagens prontas</h2>
+          <div class="text-sm text-slate-500">
+            {{ now.strftime("%d/%m/%Y %H:%M UTC") if now is defined else "" }}
+          </div>
+        </div>
+
+        {% if messages is defined and messages %}
+          <div class="mt-4 flex flex-wrap items-center gap-2">
+            <button
+              id="copyAllBtn"
+              type="button"
+              class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+            >
+              Copiar todas
+            </button>
+
+            <span id="toast" class="hidden text-sm font-semibold text-green-600">Copiado ✔</span>
+          </div>
+        {% else %}
+          <p class="mt-4 text-slate-600">
+            Preencha o formulário e clique em <b>Gerar mensagens</b>.
+          </p>
+        {% endif %}
+
+        <div class="mt-5 space-y-4" id="messagesWrap">
+          {% if messages is defined and messages %}
+            {% for msg in messages %}
+              <article class="rounded-xl border border-slate-200 bg-white p-4">
+                <div class="flex items-center justify-between gap-3 mb-2">
+                  <div class="text-sm font-semibold text-slate-500">Mensagem {{ loop.index }}</div>
+
+                  <button
+                    type="button"
+                    class="copyBtn inline-flex items-center gap-2 rounded-lg bg-slate-900 text-white px-3 py-1.5 text-sm font-semibold hover:bg-slate-800"
+                  >
+                    Copiar
+                  </button>
+                </div>
+
+                <div class="msgText text-slate-900 leading-relaxed whitespace-pre-line">
+                  {{ msg }}
+                </div>
+              </article>
+            {% endfor %}
+          {% else %}
+            <div class="rounded-xl border border-slate-200 bg-white p-4 text-slate-600">
+              Aqui aparecerão as 10 mensagens personalizadas.
+            </div>
+          {% endif %}
+        </div>
+
+        {% if messages is defined and messages %}
+          <p class="mt-4 text-xs text-slate-400">
+            Dica: use “Copiar” e cole direto no WhatsApp.
+          </p>
+        {% endif %}
+      </section>
+    </div>
+  </div>
+</main>
+
+<script>
+  (function () {
+    const toast = document.getElementById("toast");
+    const showToast = () => {
+      if (!toast) return;
+      toast.classList.remove("hidden");
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => toast.classList.add("hidden"), 1200);
+    };
+
+    const safeCopy = async (text) => {
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast();
+      } catch (e) {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        showToast();
+      }
+    };
+
+    document.querySelectorAll(".copyBtn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const card = btn.closest("article");
+        const msgEl = card ? card.querySelector(".msgText") : null;
+        const msg = msgEl ? (msgEl.innerText || "").trim() : "";
+        safeCopy(msg);
+      });
+    });
+
+    const copyAllBtn = document.getElementById("copyAllBtn");
+    if (copyAllBtn) {
+      copyAllBtn.addEventListener("click", () => {
+        const cards = Array.from(document.querySelectorAll("#messagesWrap article"));
+        const msgs = cards
+          .map((card) => {
+            const msgEl = card.querySelector(".msgText");
+            return msgEl ? (msgEl.innerText || "").trim() : "";
+          })
+          .filter(Boolean);
+
+        const text = msgs
+          .map((m, i) => `Mensagem ${i + 1}\n${m}`)
+          .join("\n\n--------------------\n\n");
+
+        safeCopy(text);
+      });
+    }
+  })();
+</script>
+{% endblock %}
