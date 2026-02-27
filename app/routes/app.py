@@ -203,7 +203,6 @@ def _generate_messages(nicho: str, cidade: str, servico: str, mode: str) -> List
     }
 
     msgs = base.get(mode, base["media"])
-    # completa até 10 mensagens variando
     out: List[str] = []
     while len(out) < 10:
         for m in msgs:
@@ -270,15 +269,25 @@ def invite_page(request: Request):
     flashes = pop_flashes(request)
     uid = _require_user(request)
 
+    now = datetime.now(timezone.utc)
+    # Janela padrão (últimos 30 dias) só pra não quebrar o template
+    start = now - timedelta(days=30)
+    end = now
+
     with SessionLocal() as db:
         user = db.get(User, uid)
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-    # CORRIGIDO: "Indique" agora abre o template que você já tem
     return templates.TemplateResponse(
         "retention/retention.html",
-        {"request": request, "flashes": flashes, "user": user},
+        {
+            "request": request,
+            "flashes": flashes,
+            "user": user,
+            "start": start,
+            "end": end,
+        },
     )
 
 
@@ -311,4 +320,40 @@ def social_proof_page(request: Request):
     return templates.TemplateResponse(
         "social_proof/social_proof.html",
         {"request": request, "flashes": flashes, "user": user},
+    )
+
+
+# =========================
+# NOVO ORÇAMENTO (botão + Novo Orçamento)
+# =========================
+
+@router.get("/budgets/new", response_class=HTMLResponse)
+def budgets_new_page(request: Request):
+    flashes = pop_flashes(request)
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+
+        budgets = list(
+            db.scalars(select(Budget).where(Budget.user_id == uid)).all()
+        )
+
+        total = len(budgets)
+        remaining = None
+        if not user.is_pro:
+            remaining = max(0, FREE_LIMIT_TOTAL_BUDGETS - total)
+
+    return templates.TemplateResponse(
+        "budget_new.html",
+        {
+            "request": request,
+            "flashes": flashes,
+            "user": user,
+            "total": total,
+            "remaining": remaining,
+            "can_create_budget": can_create_budget,
+        },
     )
