@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import re
 from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Tuple
 
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -35,6 +35,7 @@ def _require_user(request: Request) -> int:
 def _parse_brl_value(value: str) -> float:
     if not value:
         return 0.0
+
     s = str(value).strip()
     if not s:
         return 0.0
@@ -76,7 +77,7 @@ def _money_brl(v: float) -> str:
     return f"R$ {s}"
 
 
-def _month_window_utc(now: datetime) -> tuple[datetime, datetime]:
+def _month_window_utc(now: datetime) -> Tuple[datetime, datetime]:
     start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
     if now.month == 12:
         end = datetime(now.year + 1, 1, 1, tzinfo=timezone.utc)
@@ -85,6 +86,29 @@ def _month_window_utc(now: datetime) -> tuple[datetime, datetime]:
     return start, end
 
 
+def _render_first_existing(template_names: List[str], ctx: Dict, status_code: int = 200):
+    """
+    Tenta renderizar o primeiro template que existir.
+    Se nenhum existir, devolve erro claro (pra não ficar 500 genérico).
+    """
+    last_err = None
+    for name in template_names:
+        try:
+            templates.env.get_template(name)
+            return templates.TemplateResponse(name, ctx, status_code=status_code)
+        except Exception as e:
+            last_err = e
+            continue
+
+    return HTMLResponse(
+        f"Template não encontrado. Tentei: {template_names}. Detalhe: {last_err}",
+        status_code=500,
+    )
+
+
+# =========================
+# DASHBOARD
+# =========================
 @router.get("", response_class=HTMLResponse)
 def dashboard(request: Request):
     flashes = pop_flashes(request)
@@ -154,6 +178,9 @@ def dashboard(request: Request):
     )
 
 
+# =========================
+# BUDGETS
+# =========================
 @router.get("/budgets/new", response_class=HTMLResponse)
 def new_budget_page(request: Request):
     flashes = pop_flashes(request)
@@ -201,7 +228,7 @@ def new_budget_action(
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-        ok, _total = can_create_budget(db, user)
+        ok, total = can_create_budget(db, user)
         if not ok:
             return redirect(
                 "/app",
@@ -276,6 +303,9 @@ def followup_whatsapp(request: Request, budget_id: int):
     return RedirectResponse(url=url, status_code=302)
 
 
+# =========================
+# UPGRADE / CHECKOUT
+# =========================
 @router.get("/upgrade", response_class=HTMLResponse)
 def upgrade_page(request: Request):
     flashes = pop_flashes(request)
@@ -305,63 +335,49 @@ def checkout_redirect(request: Request):
 
     sep = "&" if "?" in checkout_url else "?"
     url = f"{checkout_url}{sep}ref=uid_{uid}"
+
     return RedirectResponse(url=url, status_code=302)
 
 
 # =========================
-# ✅ AQUISIÇÃO (PRO)
+# AQUISIÇÃO
 # =========================
+def _generate_acquisition_messages(nicho: str, cidade: str, servico: str, mode: str) -> List[str]:
+    n = nicho.strip()
+    c = cidade.strip()
+    s = servico.strip()
+    m = (mode or "media").strip().lower()
 
-def _build_acquisition_messages(nicho: str, cidade: str, servico: str, mode: str) -> List[str]:
-    nicho = nicho.strip()
-    cidade = cidade.strip()
-    servico = servico.strip()
-    mode = (mode or "media").strip().lower()
-
-    if mode == "curta":
-        templates_list = [
-            f"Oi! Vi que você trabalha com {nicho} em {cidade}. Você já tem alguém cuidando de {servico} com garantia e prazo? Se quiser, te passo uma proposta rápida.",
-            f"Olá! {servico} para {nicho} em {cidade}: consigo te atender essa semana. Quer que eu te mande valores e prazo?",
-            f"Fala! Atendo {servico} aí em {cidade}. Qual o melhor horário pra eu te mandar uma estimativa e tirar 2 dúvidas rápidas?",
-            f"Oi, tudo bem? Trabalho com {servico} focado em {nicho} em {cidade}. Posso te mandar uma opção de orçamento hoje?",
-            f"Olá! Você tem demanda de {servico} aí em {cidade}? Se sim, me diga só o tipo e eu te retorno com prazo e valor.",
-            f"Oi! {cidade} — {servico} para {nicho}. Se você me disser o tamanho/quantidade, eu já te passo uma base agora.",
-            f"Olá! Estou com agenda aberta em {cidade}. Quer que eu te envie uma proposta de {servico} para {nicho}?",
-            f"Fala! Se você precisar de {servico} (nicho {nicho}) em {cidade}, eu resolvo do começo ao fim. Quer detalhes?",
-            f"Oi! Posso te atender em {cidade} com {servico}. Se preferir, mando um orçamento em 3 linhas agora.",
-            f"Olá! Você quer reduzir dor de cabeça com {servico} no seu {nicho}? Me diz “sim” que eu te mando a proposta.",
+    if m == "curta":
+        base = [
+            f"Oi! Vi que você trabalha com {n} em {c}. Você atende {s}? Posso te mostrar uma ideia rápida.",
+            f"Olá! {n} em {c}: vocês fazem {s}? Se sim, posso te mandar uma mensagem pronta.",
+            f"Oi 👋 Trabalho com {n} em {c}. Posso te enviar uma abordagem rápida sobre {s}?",
         ]
-        return templates_list
-
-    if mode == "agressiva":
-        templates_list = [
-            f"Oi! {cidade}. Eu cuido de {servico} pra {nicho} com prazo fechado e garantia. Se eu te mandar um orçamento hoje, você consegue me responder ainda hoje?",
-            f"Olá — trabalho com {servico} pra {nicho} em {cidade}. Tenho 2 horários livres essa semana. Quer reservar antes que feche a agenda?",
-            f"Fala! Se {servico} tá travando algo aí no seu {nicho} em {cidade}, eu resolvo rápido. Me diz o que precisa e eu já te passo prazo + valor.",
-            f"Oi! Eu consigo iniciar {servico} em {cidade} em até 48h (dependendo do volume). Quer que eu mande a proposta agora?",
-            f"Olá! {servico} pra {nicho} em {cidade}: faço com checklist e entrego pronto. Se eu te mandar valores, você decide hoje?",
-            f"Fala! Tenho um pacote direto pra {nicho} em {cidade} (inclui {servico}). Quer receber 2 opções: econômica e completa?",
-            f"Oi! Posso assumir {servico} aí em {cidade} e te livrar disso essa semana. Qual a melhor forma: te mando no WhatsApp ou aqui mesmo?",
-            f"Olá! Se você quer fechar {servico} sem enrolação: me diga o tamanho/quantidade e eu envio um preço fechado agora.",
-            f"Fala! Atendo {nicho} em {cidade}. Se você topar, eu te mando proposta + garantia + prazo ainda hoje e você só aprova.",
-            f"Oi! Se {servico} é prioridade no seu {nicho} em {cidade}, eu consigo te atender primeiro. Quer que eu te ligue 2 minutos ou prefere texto?",
+    elif m == "agressiva":
+        base = [
+            f"Fala! {n} em {c}. Dá pra aumentar fechamento de {s} com um ajuste simples. Quer que eu te mostre?",
+            f"Oi! Se vocês atendem {s} em {c}, eu te mando um roteiro pra fechar mais. Posso enviar?",
+            f"Olá — {n} em {c} tem demanda de {s}. Quer um plano rápido pra captar mais?",
         ]
-        return templates_list
+    else:
+        base = [
+            f"Oi, tudo bem? Vi seu trabalho com {n} em {c}. Vocês oferecem {s}? Posso te mandar uma sugestão pra captar mais clientes.",
+            f"Olá! Eu ajudo negócios de {n} em {c} a melhorar a prospecção. Posso te mandar uma mensagem modelo pra {s}?",
+            f"Oi 👋 Você atende {s} em {c}? Se sim, posso compartilhar um texto de WhatsApp que costuma gerar respostas.",
+        ]
 
-    # mode == "media"
-    templates_list = [
-        f"Oi! Tudo bem? Eu trabalho com {servico} voltado pra {nicho} aí em {cidade}. Posso te fazer 2 perguntas rápidas pra entender e te mandar um orçamento certinho?",
-        f"Olá! Vi seu negócio na área de {nicho} em {cidade}. Eu ajudo com {servico} com garantia e prazos bem alinhados. Quer que eu te envie uma proposta?",
-        f"Fala! Atendo {cidade} com {servico} pra {nicho}. Você já tem alguém cuidando disso ou ainda está cotando?",
-        f"Oi! Posso te ajudar com {servico} aí em {cidade}. Qual seria o objetivo principal: reduzir custo, melhorar qualidade ou ganhar velocidade?",
-        f"Olá! Trabalho com {servico} para clientes de {nicho} em {cidade}. Se você me disser o tamanho/quantidade, eu te mando 2 opções (básica e completa).",
-        f"Fala! Tenho um processo bem simples: você me passa as infos, eu envio proposta e, se fizer sentido, já agendamos. Quer seguir assim para {servico} em {cidade}?",
-        f"Oi! Em {cidade}, eu faço {servico} com foco em {nicho}. Você prefere que eu te mande um orçamento “fechado” ou uma estimativa primeiro?",
-        f"Olá! Se você estiver cotando {servico} pra {nicho} aí em {cidade}, posso te mandar uma proposta rápida hoje e ajustar conforme sua necessidade.",
-        f"Fala! Eu atendo {nicho} em {cidade} e consigo te orientar no melhor caminho pra {servico}. Quer que eu te envie um resumo com prazo + valor?",
-        f"Oi! Pra não tomar seu tempo: me diga só (1) bairro/área em {cidade} e (2) o que você precisa em {servico}. Aí eu te retorno com orçamento.",
+    extras = [
+        f"Oi! Você é de {c}? Vi que atua com {n}. Posso te enviar 3 mensagens prontas pra {s}?",
+        f"Olá! Para {n} em {c}, {s} costuma ter boa procura. Quer 5 abordagens pra testar hoje?",
+        f"Oi 👋 Rapidinho: vocês atendem {s}? Se sim, te mando uma abordagem pronta para {n} em {c}.",
+        f"Olá! Quer que eu te mande agora um texto curto e outro médio pra prospectar {s} em {c}?",
+        f"Oi! Se você trabalha com {n} em {c}, posso te mandar um roteiro simples pra fechar mais {s}. Quer receber?",
+        f"Olá 👋 Posso te enviar uma mensagem que aumenta resposta no WhatsApp para {s} (nicho {n}, cidade {c}).",
+        f"Oi! Quer 10 mensagens diferentes pra abordar clientes de {s} em {c}? Eu te mando aqui.",
     ]
-    return templates_list
+
+    return (base + extras)[:10]
 
 
 @router.get("/acquisition", response_class=HTMLResponse)
@@ -374,20 +390,17 @@ def acquisition_page(request: Request):
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-        if not user.is_pro:
-            return redirect("/app/upgrade", kind="error", message="Aquisição é Premium.")
+    ctx = {
+        "request": request,
+        "flashes": flashes,
+        "user": user,
+        "now": datetime.now(timezone.utc),
+        "messages": [],
+        "form": {"nicho": "", "cidade": "", "servico": "", "mode": "media"},
+        "mode": "media",
+    }
 
-    return templates.TemplateResponse(
-        "acquisition.html",
-        {
-            "request": request,
-            "flashes": flashes,
-            "user": user,
-            "now": datetime.now(timezone.utc),
-            "messages": [],
-            "form": {"nicho": "", "cidade": "", "servico": "", "mode": "media"},
-        },
-    )
+    return _render_first_existing(["acquisition.html", "acquisition/acquisition.html"], ctx)
 
 
 @router.post("/acquisition/generate", response_class=HTMLResponse)
@@ -405,27 +418,64 @@ def acquisition_generate(
         user = db.get(User, uid)
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
-        if not user.is_pro:
-            return redirect("/app/upgrade", kind="error", message="Aquisição é Premium.")
 
-    messages = _build_acquisition_messages(nicho=nicho, cidade=cidade, servico=servico, mode=mode)
+    messages = _generate_acquisition_messages(nicho, cidade, servico, mode)
 
-    return templates.TemplateResponse(
-        "acquisition.html",
-        {
-            "request": request,
-            "flashes": flashes,
-            "user": user,
-            "now": datetime.now(timezone.utc),
-            "messages": messages,
-            "form": {"nicho": nicho, "cidade": cidade, "servico": servico, "mode": mode},
-            "mode": mode,
-        },
+    ctx = {
+        "request": request,
+        "flashes": flashes,
+        "user": user,
+        "now": datetime.now(timezone.utc),
+        "messages": messages,
+        "form": {"nicho": nicho, "cidade": cidade, "servico": servico, "mode": mode},
+        "mode": mode,
+    }
+
+    return _render_first_existing(["acquisition.html", "acquisition/acquisition.html"], ctx)
+
+
+# =========================
+# DEPOIMENTOS (CASES)
+# =========================
+@router.get("/cases", response_class=HTMLResponse)
+def cases_page(request: Request):
+    """
+    Resolve o 404 do /app/cases (botão Depoimentos).
+    Aqui eu tento carregar o template que você já tem no projeto.
+    """
+    flashes = pop_flashes(request)
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+
+    ctx = {
+        "request": request,
+        "flashes": flashes,
+        "user": user,
+        "now": datetime.now(timezone.utc),
+    }
+
+    # ⚠️ coloque aqui os nomes reais dos templates de depoimentos no seu projeto.
+    # Eu deixei várias tentativas comuns.
+    return _render_first_existing(
+        [
+            "cases.html",
+            "depoimentos.html",
+            "testimonials.html",
+            "social_proof.html",
+            "cases/index.html",
+            "depoimentos/index.html",
+            "social_proof/index.html",
+        ],
+        ctx,
     )
 
 
 # =========================
-# ✅ ROTA TEMPORÁRIA: MAKE ADMIN + PRO
+# MAKE ADMIN (TEMP)
 # =========================
 @router.get("/make-admin")
 def make_admin(request: Request):
