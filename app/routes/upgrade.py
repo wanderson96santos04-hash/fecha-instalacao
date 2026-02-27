@@ -16,16 +16,12 @@ templates = Jinja2Templates(directory="app/templates")
 
 
 def _get_checkout_url() -> str:
-    """
-    Não quebra se o settings não tiver o atributo.
-    Prioridade:
-    1) settings.KIWIFY_CHECKOUT_URL (se existir)
-    2) env var KIWIFY_CHECKOUT_URL
-    """
+    # 1) tenta no settings (sem quebrar se não existir)
     url = (getattr(settings, "KIWIFY_CHECKOUT_URL", "") or "").strip()
-    if not url:
-        url = (os.getenv("KIWIFY_CHECKOUT_URL") or "").strip()
-    return url
+    if url:
+        return url
+    # 2) fallback direto do ambiente (Render)
+    return (os.getenv("KIWIFY_CHECKOUT_URL", "") or "").strip()
 
 
 @router.get("/upgrade", response_class=HTMLResponse)
@@ -53,7 +49,6 @@ def upgrade_page(request: Request):
     )
 
 
-# rota que o botão "Assinar Premium" chama (upgrade.html -> /app/checkout)
 @router.get("/checkout")
 def checkout(request: Request):
     uid = get_user_id_from_request(request)
