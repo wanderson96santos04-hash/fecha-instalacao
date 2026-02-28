@@ -19,6 +19,9 @@ from app.routes import retention
 # ✅ CORRIGIDO: incluir router do upgrade (checkout fica aqui)
 from app.routes.upgrade import router as upgrade_router
 
+# ✅ CORRIGIDO: incluir router do onboarding (módulo)
+from app.modules.onboarding.router import router as onboarding_router
+
 
 app = FastAPI(title="FECHA INSTALAÇÃO", version="0.1.0")
 print(">>> MAIN.PY LOADED (with premium_gate + modules)")
@@ -118,6 +121,9 @@ app.include_router(retention.router)
 
 # ✅ CORRIGIDO: inclui upgrade.py (vai registrar /app/upgrade e /app/checkout)
 app.include_router(upgrade_router)
+
+# ✅ CORRIGIDO: inclui onboarding (vai registrar /app/onboarding do módulo)
+app.include_router(onboarding_router)
 
 
 @app.exception_handler(401)
