@@ -883,7 +883,7 @@ def budgets_new_post(
             user_id=uid,
             client_name=client_name,
             phone=phone,
-            service=service,
+            service_type=service,  # ✅ ÚNICA CORREÇÃO AQUI
             value=value,
             payment_method=payment_method,
             notes=notes,
