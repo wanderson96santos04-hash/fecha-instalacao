@@ -20,6 +20,7 @@ from app.services.followup import can_followup
 
 router = APIRouter(prefix="/app")
 templates = Jinja2Templates(directory="app/templates")
+templates.env.loader.searchpath.append("app/modules/onboarding/templates")
 
 
 def _require_user(request: Request) -> int:
@@ -279,8 +280,25 @@ def acquisition_generate(
 
 @router.get("/onboarding", response_class=HTMLResponse)
 def onboarding_page(request: Request):
-    # Se você quiser no futuro uma página onboarding.html, troca aqui.
-    return RedirectResponse(url="/app", status_code=302)
+    flashes = pop_flashes(request)
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+
+    state = {
+        "step1_done": False,
+        "step2_done": False,
+        "step3_done": False,
+        "completed": False,
+    }
+
+    return templates.TemplateResponse(
+        "onboarding/onboarding.html",
+        {"request": request, "flashes": flashes, "user": user, "state": state},
+    )
 
 
 @router.get("/invite", response_class=HTMLResponse)
