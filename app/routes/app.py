@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import os
 import re
+import io
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List
 
 from fastapi import APIRouter, Request, Form, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, desc
 
@@ -274,37 +275,12 @@ def acquisition_generate(
 
 
 # =========================
-# ROTAS DO MENU (voltando a funcionar)
+# ROTAS DO MENU
 # =========================
-
-@router.get("/onboarding", response_class=HTMLResponse)
-def onboarding_page(request: Request):
-    flashes = pop_flashes(request)
-    uid = _require_user(request)
-
-    with SessionLocal() as db:
-        user = db.get(User, uid)
-        if not user:
-            return redirect("/login", kind="error", message="Faça login novamente.")
-
-    # Estado básico para o template não quebrar
-    state = {
-        "step1_done": False,
-        "step2_done": False,
-        "step3_done": False,
-        "completed": False,
-    }
-
-    return templates.TemplateResponse(
-        "onboarding/onboarding.html",
-        {
-            "request": request,
-            "flashes": flashes,
-            "user": user,
-            "state": state,
-            "now": datetime.now(timezone.utc),
-        },
-    )
+# ⚠️ IMPORTANTE:
+# NÃO DEFINIR /onboarding AQUI.
+# O onboarding verdadeiro está em app/modules/onboarding/router.py (e templates do módulo).
+# Se definir aqui, quebra (TemplateNotFound) e ainda conflita rota.
 
 
 @router.get("/invite", response_class=HTMLResponse)
@@ -346,7 +322,6 @@ def cases_page(request: Request):
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-    # Página pública de depoimentos: por enquanto sem banco (não quebra nada)
     items: List[Dict] = []
 
     return templates.TemplateResponse(
@@ -361,7 +336,6 @@ def cases_page(request: Request):
     )
 
 
-# ✅ CORREÇÃO PRINCIPAL: rotas do ADMIN que estavam dando 404
 @router.get("/cases/admin", response_class=HTMLResponse)
 def cases_admin_list(request: Request):
     flashes = pop_flashes(request)
@@ -409,7 +383,6 @@ def cases_admin_new(request: Request):
 
 @router.post("/cases/admin/new")
 def cases_admin_new_post(request: Request):
-    # Safe: não quebra o sistema mesmo sem banco.
     return RedirectResponse(url="/app/cases/admin", status_code=302)
 
 
@@ -453,7 +426,6 @@ def cases_export(request: Request):
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-    # Se seu export.html for só uma página, isso resolve.
     return templates.TemplateResponse(
         "cases/export.html",
         {
@@ -488,7 +460,6 @@ def social_proof_page(request: Request):
     )
 
 
-# ✅ CORREÇÃO: rota do botão "Gerar prova social" (POST) estava 404
 @router.post("/social-proof/generate", response_class=HTMLResponse)
 def social_proof_generate(
     request: Request,
@@ -538,17 +509,162 @@ def social_proof_generate(
     )
 
 
-# ✅✅ NOVO: aceitar POST nos botões de export (evita 405)
+# =========================
+# EXPORT (PDF / PPT) - CORREÇÃO REAL DO 405
+# Aceita GET e POST e retorna o arquivo (sem redirect).
+# =========================
+
+def _sp_get_payload(request: Request, servico: str | None = None, valor: str | None = None,
+                    cidade: str | None = None, detalhe: str | None = None) -> dict:
+    qp = request.query_params
+    return {
+        "servico": (servico if servico is not None else qp.get("servico", "")).strip(),
+        "valor": (valor if valor is not None else qp.get("valor", "")).strip(),
+        "cidade": (cidade if cidade is not None else qp.get("cidade", "")).strip(),
+        "detalhe": (detalhe if detalhe is not None else qp.get("detalhe", "")).strip(),
+    }
+
+
+def _sp_text(payload: dict) -> str:
+    partes = []
+    if payload["servico"]:
+        partes.append(f"Serviço fechado: {payload['servico']}")
+    if payload["valor"]:
+        partes.append(f"Valor: {payload['valor']}")
+    if payload["cidade"]:
+        partes.append(f"Cidade: {payload['cidade']}")
+    if payload["detalhe"]:
+        partes.append(f"Detalhe: {payload['detalhe']}")
+    if not partes:
+        return "Prova social (vazia). Preencha os campos antes de exportar."
+    return "Prova social\n\n" + "\n".join(partes)
+
+
+@router.get("/social-proof/pdf")
 @router.post("/social-proof/pdf")
-def social_proof_export_pdf_post(request: Request):
-    # Os botões estão dando POST. Redireciona para GET.
-    return RedirectResponse(url="/app/social-proof/pdf", status_code=303)
+def social_proof_pdf(
+    request: Request,
+    servico: str = Form(""),
+    valor: str = Form(""),
+    cidade: str = Form(""),
+    detalhe: str = Form(""),
+):
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+        if not user.is_pro:
+            return redirect("/app/upgrade", kind="error", message="Exportação PDF é Premium.")
+
+    payload = _sp_get_payload(request, servico, valor, cidade, detalhe)
+    text = _sp_text(payload)
+
+    try:
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import A4
+    except Exception:
+        raise HTTPException(status_code=500, detail="Biblioteca de PDF não instalada (reportlab).")
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    width, height = A4
+
+    y = height - 72
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(72, y, "Prova Social")
+    y -= 28
+
+    c.setFont("Helvetica", 12)
+    for line in text.splitlines():
+        if not line.strip():
+            y -= 10
+            continue
+        c.drawString(72, y, line)
+        y -= 16
+        if y < 72:
+            c.showPage()
+            y = height - 72
+            c.setFont("Helvetica", 12)
+
+    c.showPage()
+    c.save()
+    buf.seek(0)
+
+    headers = {"Content-Disposition": 'attachment; filename="prova-social.pdf"'}
+    return Response(content=buf.getvalue(), media_type="application/pdf", headers=headers)
 
 
+@router.get("/social-proof/ppt")
 @router.post("/social-proof/ppt")
-def social_proof_export_ppt_post(request: Request):
-    # Os botões estão dando POST. Redireciona para GET.
-    return RedirectResponse(url="/app/social-proof/ppt", status_code=303)
+def social_proof_ppt(
+    request: Request,
+    servico: str = Form(""),
+    valor: str = Form(""),
+    cidade: str = Form(""),
+    detalhe: str = Form(""),
+):
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+        if not user.is_pro:
+            return redirect("/app/upgrade", kind="error", message="Exportação PPT é Premium.")
+
+    payload = _sp_get_payload(request, servico, valor, cidade, detalhe)
+
+    try:
+        from pptx import Presentation
+        from pptx.util import Inches, Pt
+    except Exception:
+        raise HTTPException(status_code=500, detail="Biblioteca de PPT não instalada (python-pptx).")
+
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[5])
+
+    title_box = slide.shapes.add_textbox(Inches(0.8), Inches(0.6), Inches(12.0), Inches(1.0))
+    tf = title_box.text_frame
+    tf.text = "Prova Social"
+    tf.paragraphs[0].font.size = Pt(36)
+    tf.paragraphs[0].font.bold = True
+
+    body_box = slide.shapes.add_textbox(Inches(0.9), Inches(1.8), Inches(12.0), Inches(4.5))
+    bt = body_box.text_frame
+    bt.word_wrap = True
+
+    lines = []
+    if payload["servico"]:
+        lines.append(f"Serviço fechado: {payload['servico']}")
+    if payload["valor"]:
+        lines.append(f"Valor: {payload['valor']}")
+    if payload["cidade"]:
+        lines.append(f"Cidade: {payload['cidade']}")
+    if payload["detalhe"]:
+        lines.append(f"Detalhe: {payload['detalhe']}")
+    if not lines:
+        lines = ["(Sem dados) Preencha os campos antes de exportar."]
+
+    bt.text = lines[0]
+    bt.paragraphs[0].font.size = Pt(20)
+    for line in lines[1:]:
+        p = bt.add_paragraph()
+        p.text = line
+        p.level = 0
+        p.font.size = Pt(20)
+
+    out = io.BytesIO()
+    prs.save(out)
+    out.seek(0)
+
+    headers = {"Content-Disposition": 'attachment; filename="prova-social.pptx"'}
+    return Response(
+        content=out.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers=headers,
+    )
 
 
 # ✅ NÃO coloque /app/upgrade aqui.
