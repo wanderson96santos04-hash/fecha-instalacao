@@ -19,7 +19,10 @@ from app.services.whatsapp import build_budget_message, whatsapp_link, followup_
 from app.services.followup import can_followup
 
 router = APIRouter(prefix="/app")
-templates = Jinja2Templates(directory="app/templates")
+
+# ✅ CORREÇÃO NECESSÁRIA (Render): usar caminho ABSOLUTO para templates
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # .../app
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 
 def _require_user(request: Request) -> int:
