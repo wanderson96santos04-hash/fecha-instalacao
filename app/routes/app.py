@@ -514,8 +514,13 @@ def social_proof_generate(
 # Aceita GET e POST e retorna o arquivo (sem redirect).
 # =========================
 
-def _sp_get_payload(request: Request, servico: str | None = None, valor: str | None = None,
-                    cidade: str | None = None, detalhe: str | None = None) -> dict:
+def _sp_get_payload(
+    request: Request,
+    servico: str | None = None,
+    valor: str | None = None,
+    cidade: str | None = None,
+    detalhe: str | None = None,
+) -> dict:
     qp = request.query_params
     return {
         "servico": (servico if servico is not None else qp.get("servico", "")).strip(),
@@ -559,40 +564,120 @@ def social_proof_pdf(
             return redirect("/app/upgrade", kind="error", message="Exportação PDF é Premium.")
 
     payload = _sp_get_payload(request, servico, valor, cidade, detalhe)
-    text = _sp_text(payload)
 
     try:
         from reportlab.pdfgen import canvas
         from reportlab.lib.pagesizes import A4
+        from reportlab.lib import colors
     except Exception:
         raise HTTPException(status_code=500, detail="Biblioteca de PDF não instalada (reportlab).")
+
+    now = datetime.now(timezone.utc)
+    filename = f'prova-social-{now.strftime("%Y%m%d-%H%M%S")}.pdf'
 
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
     width, height = A4
 
-    y = height - 72
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(72, y, "Prova Social")
-    y -= 28
+    # Layout base
+    margin = 54  # ~1.9cm
+    card_x = margin
+    card_y = margin + 36
+    card_w = width - (margin * 2)
+    card_h = height - (margin * 2) - 36
 
+    # Fundo (branco) + "card" com borda suave
+    c.setFillColor(colors.white)
+    c.rect(0, 0, width, height, stroke=0, fill=1)
+
+    c.setFillColor(colors.white)
+    c.setStrokeColor(colors.HexColor("#E5E7EB"))  # cinza claro
+    c.setLineWidth(1)
+    c.roundRect(card_x, card_y, card_w, card_h, radius=14, stroke=1, fill=1)
+
+    # Cabeçalho
+    title_y = card_y + card_h - 54
+    c.setFillColor(colors.HexColor("#0F172A"))  # slate-900
+    c.setFont("Helvetica-Bold", 26)
+    c.drawString(card_x + 28, title_y, "Prova Social")
+
+    c.setFillColor(colors.HexColor("#475569"))  # slate-600
     c.setFont("Helvetica", 12)
-    for line in text.splitlines():
-        if not line.strip():
-            y -= 10
-            continue
-        c.drawString(72, y, line)
-        y -= 16
-        if y < 72:
-            c.showPage()
-            y = height - 72
-            c.setFont("Helvetica", 12)
+    c.drawString(card_x + 28, title_y - 22, "Depoimento pronto para postar")
+
+    # Linha separadora
+    sep_y = title_y - 36
+    c.setStrokeColor(colors.HexColor("#EEF2F7"))
+    c.setLineWidth(1)
+    c.line(card_x + 24, sep_y, card_x + card_w - 24, sep_y)
+
+    # Conteúdo (labels + valores)
+    y = sep_y - 34
+    label_x = card_x + 28
+    value_x = card_x + 150
+
+    def draw_row(label: str, value: str, y_pos: float) -> float:
+        if not value:
+            return y_pos
+        c.setFillColor(colors.HexColor("#334155"))  # slate-700
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(label_x, y_pos, label)
+
+        c.setFillColor(colors.HexColor("#0F172A"))
+        c.setFont("Helvetica", 12)
+        # quebra simples se for longo
+        max_w = (card_x + card_w - 28) - value_x
+        words = value.split()
+        line = ""
+        lines: List[str] = []
+        for w in words:
+            test = (line + " " + w).strip()
+            if c.stringWidth(test, "Helvetica", 12) <= max_w:
+                line = test
+            else:
+                if line:
+                    lines.append(line)
+                line = w
+        if line:
+            lines.append(line)
+
+        if not lines:
+            lines = [""]
+
+        c.drawString(value_x, y_pos, lines[0])
+        y_pos -= 18
+        for extra in lines[1:]:
+            c.drawString(value_x, y_pos, extra)
+            y_pos -= 18
+        y_pos -= 4
+        return y_pos
+
+    y = draw_row("Serviço:", payload.get("servico", ""), y)
+    y = draw_row("Valor:", payload.get("valor", ""), y)
+    y = draw_row("Cidade:", payload.get("cidade", ""), y)
+    y = draw_row("Detalhe:", payload.get("detalhe", ""), y)
+
+    # Caso vazio: mensagem central
+    if not (payload.get("servico") or payload.get("valor") or payload.get("cidade") or payload.get("detalhe")):
+        c.setFillColor(colors.HexColor("#0F172A"))
+        c.setFont("Helvetica-Bold", 16)
+        c.drawString(card_x + 28, sep_y - 64, "Prova social vazia")
+        c.setFillColor(colors.HexColor("#475569"))
+        c.setFont("Helvetica", 12)
+        c.drawString(card_x + 28, sep_y - 86, "Preencha os campos antes de exportar.")
+
+    # Rodapé
+    footer_y = card_y + 18
+    c.setFillColor(colors.HexColor("#94A3B8"))  # slate-400
+    c.setFont("Helvetica", 9)
+    c.drawString(card_x + 24, footer_y, f"Gerado em {now.strftime('%d/%m/%Y %H:%M UTC')}")
+    c.drawRightString(card_x + card_w - 24, footer_y, "Fecha Instalação")
 
     c.showPage()
     c.save()
     buf.seek(0)
 
-    headers = {"Content-Disposition": 'attachment; filename="prova-social.pdf"'}
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
     return Response(content=buf.getvalue(), media_type="application/pdf", headers=headers)
 
 
@@ -619,47 +704,106 @@ def social_proof_ppt(
     try:
         from pptx import Presentation
         from pptx.util import Inches, Pt
+        from pptx.dml.color import RGBColor
+        from pptx.enum.text import PP_ALIGN
     except Exception:
         raise HTTPException(status_code=500, detail="Biblioteca de PPT não instalada (python-pptx).")
 
+    now = datetime.now(timezone.utc)
+    filename = f'prova-social-{now.strftime("%Y%m%d-%H%M%S")}.pptx'
+
     prs = Presentation()
-    slide = prs.slides.add_slide(prs.slide_layouts[5])
+    # Layout em branco
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
 
-    title_box = slide.shapes.add_textbox(Inches(0.8), Inches(0.6), Inches(12.0), Inches(1.0))
+    # Fundo (branco) + card
+    bg = slide.shapes.add_shape(
+        1,  # MSO_AUTO_SHAPE_TYPE.rectangle (evitar import extra)
+        Inches(0), Inches(0), Inches(13.333), Inches(7.5)
+    )
+    bg.fill.solid()
+    bg.fill.fore_color.rgb = RGBColor(255, 255, 255)
+    bg.line.fill.background()
+
+    card = slide.shapes.add_shape(
+        1,
+        Inches(0.7), Inches(0.7), Inches(11.9), Inches(6.1)
+    )
+    card.fill.solid()
+    card.fill.fore_color.rgb = RGBColor(255, 255, 255)
+    card.line.color.rgb = RGBColor(229, 231, 235)
+    card.line.width = Pt(1)
+
+    # Título
+    title_box = slide.shapes.add_textbox(Inches(1.1), Inches(1.0), Inches(10.8), Inches(0.8))
     tf = title_box.text_frame
-    tf.text = "Prova Social"
-    tf.paragraphs[0].font.size = Pt(36)
-    tf.paragraphs[0].font.bold = True
+    tf.clear()
+    p = tf.paragraphs[0]
+    p.text = "Prova Social"
+    p.font.size = Pt(40)
+    p.font.bold = True
+    p.font.color.rgb = RGBColor(15, 23, 42)
 
-    body_box = slide.shapes.add_textbox(Inches(0.9), Inches(1.8), Inches(12.0), Inches(4.5))
+    # Subtítulo
+    sub_box = slide.shapes.add_textbox(Inches(1.1), Inches(1.7), Inches(10.8), Inches(0.4))
+    st = sub_box.text_frame
+    st.clear()
+    sp = st.paragraphs[0]
+    sp.text = "Depoimento pronto para postar"
+    sp.font.size = Pt(16)
+    sp.font.color.rgb = RGBColor(71, 85, 105)
+
+    # Conteúdo
+    body_box = slide.shapes.add_textbox(Inches(1.1), Inches(2.4), Inches(10.8), Inches(3.5))
     bt = body_box.text_frame
+    bt.clear()
     bt.word_wrap = True
 
     lines = []
     if payload["servico"]:
-        lines.append(f"Serviço fechado: {payload['servico']}")
+        lines.append(("Serviço", payload["servico"]))
     if payload["valor"]:
-        lines.append(f"Valor: {payload['valor']}")
+        lines.append(("Valor", payload["valor"]))
     if payload["cidade"]:
-        lines.append(f"Cidade: {payload['cidade']}")
+        lines.append(("Cidade", payload["cidade"]))
     if payload["detalhe"]:
-        lines.append(f"Detalhe: {payload['detalhe']}")
-    if not lines:
-        lines = ["(Sem dados) Preencha os campos antes de exportar."]
+        lines.append(("Detalhe", payload["detalhe"]))
 
-    bt.text = lines[0]
-    bt.paragraphs[0].font.size = Pt(20)
-    for line in lines[1:]:
-        p = bt.add_paragraph()
-        p.text = line
-        p.level = 0
-        p.font.size = Pt(20)
+    if not lines:
+        p0 = bt.paragraphs[0]
+        p0.text = "Sem dados — preencha os campos antes de exportar."
+        p0.font.size = Pt(20)
+        p0.font.color.rgb = RGBColor(71, 85, 105)
+    else:
+        # primeira linha
+        k0, v0 = lines[0]
+        p0 = bt.paragraphs[0]
+        p0.text = f"{k0}: {v0}"
+        p0.font.size = Pt(24)
+        p0.font.color.rgb = RGBColor(15, 23, 42)
+
+        for k, v in lines[1:]:
+            p = bt.add_paragraph()
+            p.text = f"{k}: {v}"
+            p.level = 0
+            p.font.size = Pt(24)
+            p.font.color.rgb = RGBColor(15, 23, 42)
+
+    # Rodapé
+    footer = slide.shapes.add_textbox(Inches(1.1), Inches(6.35), Inches(10.8), Inches(0.35))
+    ft = footer.text_frame
+    ft.clear()
+    fp = ft.paragraphs[0]
+    fp.text = f"Gerado em {now.strftime('%d/%m/%Y %H:%M UTC')}  •  Fecha Instalação"
+    fp.font.size = Pt(12)
+    fp.font.color.rgb = RGBColor(148, 163, 184)
+    fp.alignment = PP_ALIGN.LEFT
 
     out = io.BytesIO()
     prs.save(out)
     out.seek(0)
 
-    headers = {"Content-Disposition": 'attachment; filename="prova-social.pptx"'}
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
     return Response(
         content=out.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
