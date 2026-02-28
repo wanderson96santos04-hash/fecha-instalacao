@@ -9,7 +9,6 @@ from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, desc
-from jinja2 import TemplateNotFound  # ✅ ADICIONADO (fallback de templates)
 
 from app.core.deps import get_user_id_from_request, redirect, pop_flashes
 from app.db.session import SessionLocal
@@ -83,23 +82,6 @@ def _month_window_utc(now: datetime) -> tuple[datetime, datetime]:
     else:
         end = datetime(now.year, now.month + 1, 1, tzinfo=timezone.utc)
     return start, end
-
-
-# ✅ ADICIONADO: fallback de template (não quebra nada que já funciona)
-def _render_template(request: Request, names: List[str], context: dict):
-    """
-    Tenta renderizar o primeiro template existente da lista.
-    Isso evita TemplateNotFound quando o arquivo está em outro caminho no deploy.
-    """
-    last_err: Exception | None = None
-    for name in names:
-        try:
-            return templates.TemplateResponse(name, context)
-        except TemplateNotFound as e:
-            last_err = e
-            continue
-    # se nenhum achou, levanta o último erro (vai aparecer no log)
-    raise last_err if last_err else TemplateNotFound(names[0] if names else "unknown.html")
 
 
 @router.get("", response_class=HTMLResponse)
@@ -316,20 +298,17 @@ def invite_page(request: Request):
     click_count = 0
     share_text = "Vem testar o sistema: https://fecha-instalacao.onrender.com/signup"
 
-    # ✅ fallback de template (caso esteja em outro caminho no deploy)
-    context = {
-        "request": request,
-        "flashes": flashes,
-        "user": user,
-        "invite_link": invite_link,
-        "copy_count": copy_count,
-        "click_count": click_count,
-        "share_text": share_text,
-    }
-    return _render_template(
-        request,
-        names=["invite/invite.html", "invite.html"],
-        context=context,
+    return templates.TemplateResponse(
+        "invite/invite.html",
+        {
+            "request": request,
+            "flashes": flashes,
+            "user": user,
+            "invite_link": invite_link,
+            "copy_count": copy_count,
+            "click_count": click_count,
+            "share_text": share_text,
+        },
     )
 
 
@@ -343,12 +322,122 @@ def cases_page(request: Request):
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-    # ✅ fallback de template (resolve TemplateNotFound: cases.html)
-    context = {"request": request, "flashes": flashes, "user": user}
-    return _render_template(
-        request,
-        names=["cases.html", "cases/cases.html"],
-        context=context,
+    # Página pública de depoimentos: por enquanto sem banco (não quebra nada)
+    items: List[Dict] = []
+
+    return templates.TemplateResponse(
+        "cases/cases.html",
+        {
+            "request": request,
+            "flashes": flashes,
+            "user": user,
+            "items": items,
+            "now": datetime.now(timezone.utc),
+        },
+    )
+
+
+# ✅ CORREÇÃO PRINCIPAL: rotas do ADMIN que estavam dando 404
+@router.get("/cases/admin", response_class=HTMLResponse)
+def cases_admin_list(request: Request):
+    flashes = pop_flashes(request)
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+
+    items: List[Dict] = []
+
+    return templates.TemplateResponse(
+        "cases/admin_list.html",
+        {
+            "request": request,
+            "flashes": flashes,
+            "user": user,
+            "items": items,
+            "now": datetime.now(timezone.utc),
+        },
+    )
+
+
+@router.get("/cases/admin/new", response_class=HTMLResponse)
+def cases_admin_new(request: Request):
+    flashes = pop_flashes(request)
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+
+    return templates.TemplateResponse(
+        "cases/admin_new.html",
+        {
+            "request": request,
+            "flashes": flashes,
+            "user": user,
+            "now": datetime.now(timezone.utc),
+        },
+    )
+
+
+@router.post("/cases/admin/new")
+def cases_admin_new_post(request: Request):
+    # Safe: não quebra o sistema mesmo sem banco.
+    return RedirectResponse(url="/app/cases/admin", status_code=302)
+
+
+@router.get("/cases/admin/edit/{item_id}", response_class=HTMLResponse)
+def cases_admin_edit(request: Request, item_id: int):
+    flashes = pop_flashes(request)
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+
+    item = None
+
+    return templates.TemplateResponse(
+        "cases/admin_edit.html",
+        {
+            "request": request,
+            "flashes": flashes,
+            "user": user,
+            "item": item,
+            "item_id": item_id,
+            "now": datetime.now(timezone.utc),
+        },
+    )
+
+
+@router.post("/cases/admin/edit/{item_id}")
+def cases_admin_edit_post(request: Request, item_id: int):
+    return RedirectResponse(url="/app/cases/admin", status_code=302)
+
+
+@router.get("/cases/export", response_class=HTMLResponse)
+def cases_export(request: Request):
+    flashes = pop_flashes(request)
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+
+    # Se seu export.html for só uma página, isso resolve.
+    return templates.TemplateResponse(
+        "cases/export.html",
+        {
+            "request": request,
+            "flashes": flashes,
+            "user": user,
+            "now": datetime.now(timezone.utc),
+        },
     )
 
 
@@ -362,12 +451,9 @@ def social_proof_page(request: Request):
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-    # ✅ fallback de template
-    context = {"request": request, "flashes": flashes, "user": user}
-    return _render_template(
-        request,
-        names=["social_proof/social_proof.html", "social_proof.html"],
-        context=context,
+    return templates.TemplateResponse(
+        "social_proof/social_proof.html",
+        {"request": request, "flashes": flashes, "user": user},
     )
 
 
