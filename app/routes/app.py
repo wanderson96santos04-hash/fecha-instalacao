@@ -856,7 +856,7 @@ def budgets_new_post(
     request: Request,
     client_name: str = Form(""),
     phone: str = Form(""),
-    service: str = Form(""),
+    service_type: str = Form(""),
     value: str = Form(""),
     payment_method: str = Form(""),
     notes: str = Form(""),
@@ -865,7 +865,7 @@ def budgets_new_post(
 
     client_name = (client_name or "").strip()
     phone = (phone or "").strip()
-    service = (service or "").strip()
+    service_type = (service_type or "").strip()
     value = (value or "").strip()
     payment_method = (payment_method or "").strip()
     notes = (notes or "").strip()
@@ -883,10 +883,33 @@ def budgets_new_post(
             user_id=uid,
             client_name=client_name,
             phone=phone,
-            service_type=service,  # ✅ ÚNICA CORREÇÃO AQUI
+            service_type=service_type,
             value=value,
             payment_method=payment_method,
             notes=notes,
         )
 
     return redirect("/app", kind="success", message="Orçamento criado com sucesso!")
+
+
+@router.get("/budgets/{budget_id}/whatsapp")
+def budgets_whatsapp(request: Request, budget_id: int):
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+
+        budget = db.scalar(
+            select(Budget).where(Budget.id == budget_id, Budget.user_id == uid)
+        )
+        if not budget:
+            return redirect("/app", kind="error", message="Orçamento não encontrado.")
+
+        msg = build_budget_message(budget)
+        phone = (budget.phone or "").strip()
+
+        url = whatsapp_link(phone, msg)
+
+    return RedirectResponse(url=url, status_code=302)
