@@ -4,9 +4,10 @@ import os
 import re
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List
+from io import BytesIO
 
 from fastapi import APIRouter, Request, Form, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, desc
 
@@ -295,7 +296,10 @@ def onboarding_page(request: Request):
         "completed": False,
     }
 
-    return templates.TemplateResponse(
+    # ✅ template do onboarding fica no módulo (app/modules/onboarding/templates)
+    onboarding_templates = Jinja2Templates(directory="app/modules/onboarding/templates")
+
+    return onboarding_templates.TemplateResponse(
         "onboarding/onboarding.html",
         {
             "request": request,
@@ -535,6 +539,140 @@ def social_proof_generate(
             "result": result,
             "now": datetime.now(timezone.utc),
         },
+    )
+
+
+# ✅ NOVO: exportar PDF (PRO)
+@router.get("/social-proof/pdf")
+def social_proof_pdf(
+    request: Request,
+    servico: str = "",
+    valor: str = "",
+    cidade: str = "",
+    detalhe: str = "",
+    text: str = "",
+):
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+        if not user.is_pro:
+            return redirect("/app/upgrade", kind="error", message="Exportação PDF é exclusiva do Premium.")
+
+    content = (text or "").strip()
+    if not content:
+        parts = []
+        if servico:
+            parts.append(f"Serviço fechado: {servico}")
+        if valor:
+            parts.append(f"Valor: {valor}")
+        if cidade:
+            parts.append(f"Cidade: {cidade}")
+        if detalhe:
+            parts.append(f"Detalhe: {detalhe}")
+        content = " • ".join(parts) if parts else "Prova social"
+
+    try:
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import A4
+    except Exception:
+        return redirect("/app/social-proof", kind="error", message="Dependência do PDF não instalada no servidor.")
+
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    width, height = A4
+
+    y = height - 72
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(72, y, "Prova Social")
+    y -= 32
+
+    c.setFont("Helvetica", 12)
+    for line in content.split("\n"):
+        while len(line) > 110:
+            c.drawString(72, y, line[:110])
+            line = line[110:]
+            y -= 18
+        c.drawString(72, y, line)
+        y -= 18
+        if y < 72:
+            c.showPage()
+            y = height - 72
+            c.setFont("Helvetica", 12)
+
+    c.showPage()
+    c.save()
+    pdf_bytes = buf.getvalue()
+    buf.close()
+
+    filename = "prova-social.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ✅ NOVO: exportar PPT (PRO)
+@router.get("/social-proof/ppt")
+def social_proof_ppt(
+    request: Request,
+    servico: str = "",
+    valor: str = "",
+    cidade: str = "",
+    detalhe: str = "",
+    text: str = "",
+):
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+        if not user.is_pro:
+            return redirect("/app/upgrade", kind="error", message="Exportação PPT é exclusiva do Premium.")
+
+    content = (text or "").strip()
+    if not content:
+        parts = []
+        if servico:
+            parts.append(f"Serviço fechado: {servico}")
+        if valor:
+            parts.append(f"Valor: {valor}")
+        if cidade:
+            parts.append(f"Cidade: {cidade}")
+        if detalhe:
+            parts.append(f"Detalhe: {detalhe}")
+        content = "\n".join(parts) if parts else "Prova social"
+
+    try:
+        from pptx import Presentation
+    except Exception:
+        return redirect("/app/social-proof", kind="error", message="Dependência do PPT não instalada no servidor.")
+
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[5])
+
+    title_box = slide.shapes.add_textbox(left=914400, top=457200, width=7315200, height=685800)
+    tf = title_box.text_frame
+    tf.text = "Prova Social"
+
+    body_box = slide.shapes.add_textbox(left=914400, top=1371600, width=7315200, height=3657600)
+    tf2 = body_box.text_frame
+    tf2.text = content
+
+    buf = BytesIO()
+    prs.save(buf)
+    ppt_bytes = buf.getvalue()
+    buf.close()
+
+    filename = "prova-social.pptx"
+    return Response(
+        content=ppt_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
