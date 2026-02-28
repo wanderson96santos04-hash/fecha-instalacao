@@ -20,7 +20,6 @@ from app.services.followup import can_followup
 
 router = APIRouter(prefix="/app")
 templates = Jinja2Templates(directory="app/templates")
-templates.env.loader.searchpath.append("app/modules/onboarding/templates")
 
 
 def _require_user(request: Request) -> int:
@@ -288,6 +287,7 @@ def onboarding_page(request: Request):
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
+    # Estado básico para o template não quebrar
     state = {
         "step1_done": False,
         "step2_done": False,
@@ -297,7 +297,13 @@ def onboarding_page(request: Request):
 
     return templates.TemplateResponse(
         "onboarding/onboarding.html",
-        {"request": request, "flashes": flashes, "user": user, "state": state},
+        {
+            "request": request,
+            "flashes": flashes,
+            "user": user,
+            "state": state,
+            "now": datetime.now(timezone.utc),
+        },
     )
 
 
@@ -471,7 +477,64 @@ def social_proof_page(request: Request):
 
     return templates.TemplateResponse(
         "social_proof/social_proof.html",
-        {"request": request, "flashes": flashes, "user": user},
+        {
+            "request": request,
+            "flashes": flashes,
+            "user": user,
+            "form": {"servico": "", "valor": "", "cidade": "", "detalhe": ""},
+            "result": "",
+            "now": datetime.now(timezone.utc),
+        },
+    )
+
+
+# ✅ CORREÇÃO: rota do botão "Gerar prova social" (POST) estava 404
+@router.post("/social-proof/generate", response_class=HTMLResponse)
+def social_proof_generate(
+    request: Request,
+    servico: str = Form(""),
+    valor: str = Form(""),
+    cidade: str = Form(""),
+    detalhe: str = Form(""),
+):
+    flashes = pop_flashes(request)
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+
+    servico_s = (servico or "").strip()
+    valor_s = (valor or "").strip()
+    cidade_s = (cidade or "").strip()
+    detalhe_s = (detalhe or "").strip()
+
+    partes = []
+    if servico_s:
+        partes.append(f"Serviço fechado: {servico_s}")
+    if valor_s:
+        partes.append(f"Valor: {valor_s}")
+    if cidade_s:
+        partes.append(f"Cidade: {cidade_s}")
+    if detalhe_s:
+        partes.append(f"Detalhe: {detalhe_s}")
+
+    if partes:
+        result = "✅ Prova social pronta:\n" + " • ".join(partes)
+    else:
+        result = "Preencha o formulário para gerar a prova social."
+
+    return templates.TemplateResponse(
+        "social_proof/social_proof.html",
+        {
+            "request": request,
+            "flashes": flashes,
+            "user": user,
+            "form": {"servico": servico_s, "valor": valor_s, "cidade": cidade_s, "detalhe": detalhe_s},
+            "result": result,
+            "now": datetime.now(timezone.utc),
+        },
     )
 
 
