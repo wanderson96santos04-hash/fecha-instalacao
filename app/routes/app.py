@@ -849,3 +849,44 @@ def budgets_new_page(request: Request):
             "can_create_budget": can_create_budget,
         },
     )
+
+
+@router.post("/budgets/new")
+def budgets_new_post(
+    request: Request,
+    client_name: str = Form(""),
+    phone: str = Form(""),
+    service: str = Form(""),
+    value: str = Form(""),
+    payment_method: str = Form(""),
+    notes: str = Form(""),
+):
+    uid = _require_user(request)
+
+    client_name = (client_name or "").strip()
+    phone = (phone or "").strip()
+    service = (service or "").strip()
+    value = (value or "").strip()
+    payment_method = (payment_method or "").strip()
+    notes = (notes or "").strip()
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+
+        if not can_create_budget(db, user):
+            return redirect("/app/upgrade", kind="error", message="Você atingiu o limite do plano gratuito.")
+
+        create_budget(
+            db=db,
+            user_id=uid,
+            client_name=client_name,
+            phone=phone,
+            service=service,
+            value=value,
+            payment_method=payment_method,
+            notes=notes,
+        )
+
+    return redirect("/app", kind="success", message="Orçamento criado com sucesso!")
