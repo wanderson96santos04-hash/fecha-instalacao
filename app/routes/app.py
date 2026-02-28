@@ -9,6 +9,7 @@ from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, desc
+from jinja2 import TemplateNotFound  # ✅ ADICIONADO (fallback de templates)
 
 from app.core.deps import get_user_id_from_request, redirect, pop_flashes
 from app.db.session import SessionLocal
@@ -19,10 +20,7 @@ from app.services.whatsapp import build_budget_message, whatsapp_link, followup_
 from app.services.followup import can_followup
 
 router = APIRouter(prefix="/app")
-
-# ✅ CORREÇÃO NECESSÁRIA (Render): usar caminho ABSOLUTO para templates
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # .../app
-templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
+templates = Jinja2Templates(directory="app/templates")
 
 
 def _require_user(request: Request) -> int:
@@ -85,6 +83,23 @@ def _month_window_utc(now: datetime) -> tuple[datetime, datetime]:
     else:
         end = datetime(now.year, now.month + 1, 1, tzinfo=timezone.utc)
     return start, end
+
+
+# ✅ ADICIONADO: fallback de template (não quebra nada que já funciona)
+def _render_template(request: Request, names: List[str], context: dict):
+    """
+    Tenta renderizar o primeiro template existente da lista.
+    Isso evita TemplateNotFound quando o arquivo está em outro caminho no deploy.
+    """
+    last_err: Exception | None = None
+    for name in names:
+        try:
+            return templates.TemplateResponse(name, context)
+        except TemplateNotFound as e:
+            last_err = e
+            continue
+    # se nenhum achou, levanta o último erro (vai aparecer no log)
+    raise last_err if last_err else TemplateNotFound(names[0] if names else "unknown.html")
 
 
 @router.get("", response_class=HTMLResponse)
@@ -301,17 +316,20 @@ def invite_page(request: Request):
     click_count = 0
     share_text = "Vem testar o sistema: https://fecha-instalacao.onrender.com/signup"
 
-    return templates.TemplateResponse(
-        "invite/invite.html",
-        {
-            "request": request,
-            "flashes": flashes,
-            "user": user,
-            "invite_link": invite_link,
-            "copy_count": copy_count,
-            "click_count": click_count,
-            "share_text": share_text,
-        },
+    # ✅ fallback de template (caso esteja em outro caminho no deploy)
+    context = {
+        "request": request,
+        "flashes": flashes,
+        "user": user,
+        "invite_link": invite_link,
+        "copy_count": copy_count,
+        "click_count": click_count,
+        "share_text": share_text,
+    }
+    return _render_template(
+        request,
+        names=["invite/invite.html", "invite.html"],
+        context=context,
     )
 
 
@@ -325,9 +343,12 @@ def cases_page(request: Request):
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-    return templates.TemplateResponse(
-        "cases.html",
-        {"request": request, "flashes": flashes, "user": user},
+    # ✅ fallback de template (resolve TemplateNotFound: cases.html)
+    context = {"request": request, "flashes": flashes, "user": user}
+    return _render_template(
+        request,
+        names=["cases.html", "cases/cases.html"],
+        context=context,
     )
 
 
@@ -341,9 +362,12 @@ def social_proof_page(request: Request):
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-    return templates.TemplateResponse(
-        "social_proof/social_proof.html",
-        {"request": request, "flashes": flashes, "user": user},
+    # ✅ fallback de template
+    context = {"request": request, "flashes": flashes, "user": user}
+    return _render_template(
+        request,
+        names=["social_proof/social_proof.html", "social_proof.html"],
+        context=context,
     )
 
 
