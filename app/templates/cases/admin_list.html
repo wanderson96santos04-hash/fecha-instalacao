@@ -1,0 +1,32 @@
+{% extends "base_app.html" %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto p-4">
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-2xl font-bold">Admin — Depoimentos</h1>
+    <a class="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold" href="/app/cases/admin/new">Novo</a>
+  </div>
+
+  {% if not items %}
+    <p class="text-slate-600">Nenhum depoimento ainda.</p>
+  {% else %}
+    <div class="space-y-3">
+      {% for t in items %}
+        <div class="rounded-xl border p-3 flex items-center justify-between gap-3 bg-white">
+          <div class="min-w-0">
+            <div class="font-semibold truncate">{{ t.name }} — {{ t.city }}</div>
+            <div class="text-sm text-slate-600 truncate">{{ t.service }} • {{ t.value }}</div>
+          </div>
+          <div class="flex gap-2 shrink-0">
+            <a class="px-3 py-2 rounded-xl border text-sm font-semibold" href="/app/cases/{{ t.id }}/export">Exportar</a>
+            <a class="px-3 py-2 rounded-xl border text-sm font-semibold" href="/app/cases/admin/{{ t.id }}/edit">Editar</a>
+            <form method="post" action="/app/cases/admin/{{ t.id }}/delete" onsubmit="return confirm('Excluir?');">
+              <button class="px-3 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold" type="submit">Excluir</button>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
