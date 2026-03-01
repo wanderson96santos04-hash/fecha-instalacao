@@ -225,9 +225,33 @@ def dashboard(request: Request):
     )
 
 
+@router.get("/upgrade", response_class=HTMLResponse)
+def upgrade_page(request: Request):
+    # ✅ NÃO mostrar flashes nesta página (evita aparecer aviso do admin aqui)
+    pop_flashes(request)  # limpa flashes antigos
+    flashes = []
+
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+
+    return templates.TemplateResponse(
+        "upgrade.html",
+        {
+            "request": request,
+            "flashes": flashes,
+            "user": user,
+        },
+    )
+
+
 @router.get("/acquisition", response_class=HTMLResponse)
 def acquisition_page(request: Request):
     # ✅ NÃO mostrar flashes nesta página (evita aparecer o aviso do admin aqui)
+    pop_flashes(request)  # limpa flashes antigos
     flashes = []
     uid = _require_user(request)
 
