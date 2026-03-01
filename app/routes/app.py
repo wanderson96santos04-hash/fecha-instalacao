@@ -92,24 +92,18 @@ def _app_tz() -> timezone:
     return timezone(timedelta(hours=hours))
 
 
-def _month_window(now: datetime) -> tuple[datetime, datetime]:
-    start = datetime(now.year, now.month, 1, tzinfo=now.tzinfo)
-    if now.month == 12:
-        end = datetime(now.year + 1, 1, 1, tzinfo=now.tzinfo)
-    else:
-        end = datetime(now.year, now.month + 1, 1, tzinfo=now.tzinfo)
-    return start, end
-
-
-# ✅ FIX: tratar created_at com/sem timezone SEM perder orçamento do mês
-def _as_tz(dt: datetime | None, tz: timezone) -> datetime | None:
+# ✅ FIX REAL: comparação por (ano, mês) para não depender de janela start/end com timezone
+def _to_local_month(dt: datetime | None, tz: timezone) -> tuple[int, int] | None:
+    """
+    Retorna (ano, mes) no fuso do app.
+    - Se dt vier com tzinfo: converte para tz
+    - Se dt vier sem tzinfo: usa como está (não "move" o horário)
+    """
     if not dt:
         return None
-    # se vier sem tzinfo, assume que foi gravado no fuso do app (Brasil)
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=tz)
-    # se vier com tzinfo, converte para o fuso do app
-    return dt.astimezone(tz)
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(tz)
+    return (dt.year, dt.month)
 
 
 # ✅ FIX: aceitar status PT/EN para o painel do mês (sem mudar o banco)
@@ -131,7 +125,7 @@ def dashboard(request: Request):
 
     tz = _app_tz()
     now = datetime.now(tz)
-    month_start, month_end = _month_window(now)
+    now_ym = (now.year, now.month)
 
     with SessionLocal() as db:
         user = db.get(User, uid)
@@ -151,17 +145,15 @@ def dashboard(request: Request):
         if not user.is_pro:
             remaining = max(0, FREE_LIMIT_TOTAL_BUDGETS - total)
 
-        # ✅ FIX REAL: usa _as_tz e NÃO deixa o painel zerar se created_at estiver NULL
+        # ✅ FIX REAL: compara por (ano, mês) para não "sumir" orçamento por timezone
+        # fallback seguro: se created_at vier NULL, inclui para não zerar o painel
         month_budgets = []
         for b in budgets:
-            ts = _as_tz(b.created_at, tz)
-
-            # fallback seguro: se created_at vier vazio (NULL), inclui para não zerar o painel
-            if ts is None:
+            ym = _to_local_month(b.created_at, tz)
+            if ym is None:
                 month_budgets.append(b)
                 continue
-
-            if month_start <= ts < month_end:
+            if ym == now_ym:
                 month_budgets.append(b)
 
         won = [b for b in month_budgets if _norm_status(b.status or "") == "won"]
@@ -174,9 +166,8 @@ def dashboard(request: Request):
         total_month = len(month_budgets)
         conversion_pct = (len(won) / total_month * 100.0) if total_month > 0 else 0.0
 
-        # ✅ FIX: fornece chaves "month_*" e também chaves simples (pra bater com qualquer dashboard.html)
+        # ✅ FIX: fornece chaves "month_*" e também chaves simples (compat)
         metrics = {
-            # formato "month_*"
             "month_won_value": _money_brl(won_value),
             "month_won_count": len(won),
             "month_lost_value": _money_brl(lost_value),
@@ -186,7 +177,6 @@ def dashboard(request: Request):
             "month_awaiting": len(awaiting),
             "month_awaiting_count": len(awaiting),
 
-            # formato simples (compat)
             "won_value": _money_brl(won_value),
             "won_count": len(won),
             "lost_value": _money_brl(lost_value),
