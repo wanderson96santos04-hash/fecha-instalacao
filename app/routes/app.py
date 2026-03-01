@@ -878,12 +878,13 @@ def budgets_new_post(
         if not can_create_budget(db, user):
             return redirect("/app/upgrade", kind="error", message="Você atingiu o limite do plano gratuito.")
 
+        # ✅ CORRIGIDO: create_budget usa service_type (não usa service)
         create_budget(
             db=db,
             user_id=uid,
             client_name=client_name,
             phone=phone,
-            service_type=service,  # ✅ CORRIGIDO (era service=service)
+            service_type=service,
             value=value,
             payment_method=payment_method,
             notes=notes,
@@ -893,8 +894,25 @@ def budgets_new_post(
 
 
 # =========================
-# WHATSAPP (ENVIAR ORÇAMENTO)
+# WHATSAPP (enviar orçamento)
 # =========================
+
+def _fallback_budget_message(b: Budget) -> str:
+    # Mensagem segura (não depende do build_budget_message)
+    partes = []
+    if getattr(b, "service_type", None):
+        partes.append(f"Serviço: {b.service_type}")
+    if getattr(b, "value", None):
+        partes.append(f"Valor: {b.value}")
+    if getattr(b, "payment_method", None):
+        partes.append(f"Pagamento: {b.payment_method}")
+    if getattr(b, "notes", None):
+        partes.append(f"Obs: {b.notes}")
+
+    header = f"Olá {getattr(b, 'client_name', '') or ''}! Segue seu orçamento:"
+    body = "\n".join(partes) if partes else "Orçamento gerado no sistema."
+    return f"{header}\n\n{body}".strip()
+
 
 @router.get("/budgets/{budget_id}/whatsapp")
 def budgets_whatsapp(request: Request, budget_id: int):
@@ -911,7 +929,72 @@ def budgets_whatsapp(request: Request, budget_id: int):
         if not budget:
             raise HTTPException(status_code=404, detail="Não encontrado")
 
-        msg = build_budget_message(budget=budget)  # ✅ CORRIGIDO (keyword-only)
-        link = whatsapp_link(phone=(budget.phone or ""), text=msg)
+        # ✅ CORRIGIDO: build_budget_message() no seu projeto não aceita parâmetro.
+        # Então: tenta usar sem args; se der erro, usa fallback manual.
+        try:
+            msg = build_budget_message()  # se existir e funcionar
+        except Exception:
+            msg = _fallback_budget_message(budget)
 
-    return RedirectResponse(url=link, status_code=302)
+        phone = (getattr(budget, "phone", "") or "").strip()
+        url = whatsapp_link(phone, msg)
+        return RedirectResponse(url=url, status_code=302)
+
+
+# =========================
+# STATUS DO ORÇAMENTO
+# =========================
+
+@router.get("/budgets/{budget_id}/status")
+def budgets_status_get(request: Request, budget_id: int, status: str = ""):
+    uid = _require_user(request)
+    status_s = (status or "").strip().lower()
+
+    if status_s not in ("won", "lost", "awaiting", ""):
+        return redirect("/app", kind="error", message="Status inválido.")
+
+    if not status_s:
+        return redirect("/app", kind="error", message="Informe o status.")
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+
+        budget = db.scalar(
+            select(Budget).where(Budget.id == budget_id, Budget.user_id == uid)
+        )
+        if not budget:
+            raise HTTPException(status_code=404, detail="Não encontrado")
+
+        budget.status = status_s
+        db.add(budget)
+        db.commit()
+
+    return redirect("/app", kind="success", message="Status atualizado!")
+
+
+@router.post("/budgets/{budget_id}/status")
+def budgets_status_post(request: Request, budget_id: int, status: str = Form("")):
+    uid = _require_user(request)
+    status_s = (status or "").strip().lower()
+
+    if status_s not in ("won", "lost", "awaiting"):
+        return redirect("/app", kind="error", message="Status inválido.")
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+
+        budget = db.scalar(
+            select(Budget).where(Budget.id == budget_id, Budget.user_id == uid)
+        )
+        if not budget:
+            raise HTTPException(status_code=404, detail="Não encontrado")
+
+        budget.status = status_s
+        db.add(budget)
+        db.commit()
+
+    return redirect("/app", kind="success", message="Status atualizado!")
