@@ -85,6 +85,17 @@ def _month_window_utc(now: datetime) -> tuple[datetime, datetime]:
     return start, end
 
 
+# ✅ FIX: tratar created_at com/sem timezone sem “sumir” com os orçamentos do mês
+def _as_utc(dt: datetime | None) -> datetime | None:
+    if not dt:
+        return None
+    # se vier sem tzinfo, assume UTC (não muda o valor numérico)
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    # se vier com tzinfo, converte para UTC
+    return dt.astimezone(timezone.utc)
+
+
 # ✅ FIX: aceitar status PT/EN para o painel do mês (sem mudar o banco)
 def _norm_status(s: str) -> str:
     s = (s or "").strip().lower()
@@ -123,14 +134,13 @@ def dashboard(request: Request):
         if not user.is_pro:
             remaining = max(0, FREE_LIMIT_TOTAL_BUDGETS - total)
 
-        month_budgets = [
-            b for b in budgets
-            if b.created_at
-            and (b.created_at.replace(tzinfo=timezone.utc) >= month_start)
-            and (b.created_at.replace(tzinfo=timezone.utc) < month_end)
-        ]
+        # ✅ FIX REAL: usa _as_utc para não zerar o painel por causa de timezone
+        month_budgets = []
+        for b in budgets:
+            ts = _as_utc(b.created_at)
+            if ts and (ts >= month_start) and (ts < month_end):
+                month_budgets.append(b)
 
-        # ✅ FIX: painel agora conta mesmo se tiver "fechado/perdido/aguardando"
         won = [b for b in month_budgets if _norm_status(b.status or "") == "won"]
         lost = [b for b in month_budgets if _norm_status(b.status or "") == "lost"]
         awaiting = [b for b in month_budgets if _norm_status(b.status or "") == "awaiting"]
@@ -177,7 +187,6 @@ def acquisition_page(request: Request):
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-        # Aquisição é PRO — FREE vai para /app/upgrade
         if not user.is_pro:
             return redirect(
                 "/app/upgrade",
@@ -263,7 +272,6 @@ def acquisition_generate(
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-        # POST também precisa bloquear FREE
         if not user.is_pro:
             return redirect(
                 "/app/upgrade",
@@ -285,15 +293,6 @@ def acquisition_generate(
             "mode": mode,
         },
     )
-
-
-# =========================
-# ROTAS DO MENU
-# =========================
-# ⚠️ IMPORTANTE:
-# NÃO DEFINIR /onboarding AQUI.
-# O onboarding verdadeiro está em app/modules/onboarding/router.py (e templates do módulo).
-# Se definir aqui, quebra (TemplateNotFound) e ainda conflita rota.
 
 
 @router.get("/invite", response_class=HTMLResponse)
@@ -522,11 +521,6 @@ def social_proof_generate(
     )
 
 
-# =========================
-# EXPORT (PDF / PPT) - CORREÇÃO REAL DO 405
-# Aceita GET e POST e retorna o arquivo (sem redirect).
-# =========================
-
 def _sp_get_payload(
     request: Request,
     servico: str | None = None,
@@ -592,39 +586,34 @@ def social_proof_pdf(
     c = canvas.Canvas(buf, pagesize=A4)
     width, height = A4
 
-    # Layout base
-    margin = 54  # ~1.9cm
+    margin = 54
     card_x = margin
     card_y = margin + 36
     card_w = width - (margin * 2)
     card_h = height - (margin * 2) - 36
 
-    # Fundo (branco) + "card" com borda suave
     c.setFillColor(colors.white)
     c.rect(0, 0, width, height, stroke=0, fill=1)
 
     c.setFillColor(colors.white)
-    c.setStrokeColor(colors.HexColor("#E5E7EB"))  # cinza claro
+    c.setStrokeColor(colors.HexColor("#E5E7EB"))
     c.setLineWidth(1)
     c.roundRect(card_x, card_y, card_w, card_h, radius=14, stroke=1, fill=1)
 
-    # Cabeçalho
     title_y = card_y + card_h - 54
-    c.setFillColor(colors.HexColor("#0F172A"))  # slate-900
+    c.setFillColor(colors.HexColor("#0F172A"))
     c.setFont("Helvetica-Bold", 26)
     c.drawString(card_x + 28, title_y, "Prova Social")
 
-    c.setFillColor(colors.HexColor("#475569"))  # slate-600
+    c.setFillColor(colors.HexColor("#475569"))
     c.setFont("Helvetica", 12)
     c.drawString(card_x + 28, title_y - 22, "Depoimento pronto para postar")
 
-    # Linha separadora
     sep_y = title_y - 36
     c.setStrokeColor(colors.HexColor("#EEF2F7"))
     c.setLineWidth(1)
     c.line(card_x + 24, sep_y, card_x + card_w - 24, sep_y)
 
-    # Conteúdo (labels + valores)
     y = sep_y - 34
     label_x = card_x + 28
     value_x = card_x + 150
@@ -632,13 +621,12 @@ def social_proof_pdf(
     def draw_row(label: str, value: str, y_pos: float) -> float:
         if not value:
             return y_pos
-        c.setFillColor(colors.HexColor("#334155"))  # slate-700
+        c.setFillColor(colors.HexColor("#334155"))
         c.setFont("Helvetica-Bold", 12)
         c.drawString(label_x, y_pos, label)
 
         c.setFillColor(colors.HexColor("#0F172A"))
         c.setFont("Helvetica", 12)
-        # quebra simples se for longo
         max_w = (card_x + card_w - 28) - value_x
         words = value.split()
         line = ""
@@ -653,7 +641,6 @@ def social_proof_pdf(
                 line = w
         if line:
             lines.append(line)
-
         if not lines:
             lines = [""]
 
@@ -670,7 +657,6 @@ def social_proof_pdf(
     y = draw_row("Cidade:", payload.get("cidade", ""), y)
     y = draw_row("Detalhe:", payload.get("detalhe", ""), y)
 
-    # Caso vazio: mensagem central
     if not (payload.get("servico") or payload.get("valor") or payload.get("cidade") or payload.get("detalhe")):
         c.setFillColor(colors.HexColor("#0F172A"))
         c.setFont("Helvetica-Bold", 16)
@@ -679,9 +665,8 @@ def social_proof_pdf(
         c.setFont("Helvetica", 12)
         c.drawString(card_x + 28, sep_y - 86, "Preencha os campos antes de exportar.")
 
-    # Rodapé
     footer_y = card_y + 18
-    c.setFillColor(colors.HexColor("#94A3B8"))  # slate-400
+    c.setFillColor(colors.HexColor("#94A3B8"))
     c.setFont("Helvetica", 9)
     c.drawString(card_x + 24, footer_y, f"Gerado em {now.strftime('%d/%m/%Y %H:%M UTC')}")
     c.drawRightString(card_x + card_w - 24, footer_y, "Fecha Instalação")
@@ -726,12 +711,10 @@ def social_proof_ppt(
     filename = f'prova-social-{now.strftime("%Y%m%d-%H%M%S")}.pptx'
 
     prs = Presentation()
-    # Layout em branco
     slide = prs.slides.add_slide(prs.slide_layouts[6])
 
-    # Fundo (branco) + card
     bg = slide.shapes.add_shape(
-        1,  # MSO_AUTO_SHAPE_TYPE.rectangle (evitar import extra)
+        1,
         Inches(0), Inches(0), Inches(13.333), Inches(7.5)
     )
     bg.fill.solid()
@@ -747,7 +730,6 @@ def social_proof_ppt(
     card.line.color.rgb = RGBColor(229, 231, 235)
     card.line.width = Pt(1)
 
-    # Título
     title_box = slide.shapes.add_textbox(Inches(1.1), Inches(1.0), Inches(10.8), Inches(0.8))
     tf = title_box.text_frame
     tf.clear()
@@ -757,7 +739,6 @@ def social_proof_ppt(
     p.font.bold = True
     p.font.color.rgb = RGBColor(15, 23, 42)
 
-    # Subtítulo
     sub_box = slide.shapes.add_textbox(Inches(1.1), Inches(1.7), Inches(10.8), Inches(0.4))
     st = sub_box.text_frame
     st.clear()
@@ -766,7 +747,6 @@ def social_proof_ppt(
     sp.font.size = Pt(16)
     sp.font.color.rgb = RGBColor(71, 85, 105)
 
-    # Conteúdo
     body_box = slide.shapes.add_textbox(Inches(1.1), Inches(2.4), Inches(10.8), Inches(3.5))
     bt = body_box.text_frame
     bt.clear()
@@ -788,7 +768,6 @@ def social_proof_ppt(
         p0.font.size = Pt(20)
         p0.font.color.rgb = RGBColor(71, 85, 105)
     else:
-        # primeira linha
         k0, v0 = lines[0]
         p0 = bt.paragraphs[0]
         p0.text = f"{k0}: {v0}"
@@ -802,7 +781,6 @@ def social_proof_ppt(
             p.font.size = Pt(24)
             p.font.color.rgb = RGBColor(15, 23, 42)
 
-    # Rodapé
     footer = slide.shapes.add_textbox(Inches(1.1), Inches(6.35), Inches(10.8), Inches(0.35))
     ft = footer.text_frame
     ft.clear()
@@ -823,14 +801,6 @@ def social_proof_ppt(
         headers=headers,
     )
 
-
-# ✅ NÃO coloque /app/upgrade aqui.
-# Ela fica SOMENTE em app/routes/upgrade.py
-
-
-# =========================
-# NOVO ORÇAMENTO
-# =========================
 
 @router.get("/budgets/new", response_class=HTMLResponse)
 def budgets_new_page(request: Request):
@@ -869,7 +839,6 @@ def budgets_new_post(
     request: Request,
     client_name: str = Form(""),
     phone: str = Form(""),
-    # ✅ FIX: create_budget exige service_type (mas aceitamos o campo antigo "service" também)
     service_type: str = Form("", alias="service_type"),
     service: str = Form(""),
     value: str = Form(""),
@@ -886,7 +855,6 @@ def budgets_new_post(
     payment_method = (payment_method or "").strip()
     notes = (notes or "").strip()
 
-    # ✅ usa service_type se vier, senão usa service (compatível com template antigo)
     final_service_type = service_type or service
 
     with SessionLocal() as db:
@@ -911,10 +879,6 @@ def budgets_new_post(
     return redirect("/app", kind="success", message="Orçamento criado com sucesso!")
 
 
-# =========================
-# WHATSAPP (ENVIO)
-# =========================
-
 @router.get("/budgets/{budget_id}/whatsapp")
 def budgets_whatsapp(request: Request, budget_id: int):
     uid = _require_user(request)
@@ -926,8 +890,6 @@ def budgets_whatsapp(request: Request, budget_id: int):
         if not budget:
             raise HTTPException(status_code=404, detail="Não encontrado")
 
-        # ✅ FIX: NÃO chamar build_budget_message(budget) porque a função não aceita args
-        # monta a mensagem aqui (só para essa rota, sem quebrar nada do resto)
         parts = []
         if (budget.service_type or "").strip():
             parts.append(f"Serviço: {budget.service_type}")
@@ -948,10 +910,6 @@ def budgets_whatsapp(request: Request, budget_id: int):
         return RedirectResponse(url=url, status_code=302)
 
 
-# =========================
-# STATUS (MARCAR)
-# =========================
-
 @router.post("/budgets/{budget_id}/status")
 def budgets_status_post(
     request: Request,
@@ -961,15 +919,12 @@ def budgets_status_post(
     uid = _require_user(request)
     status_s = (status or "").strip().lower()
 
-    # ✅ FIX: aceita PT/EN mas grava padronizado
     mapping = {
         "awaiting": "awaiting",
         "aguardando": "awaiting",
         "pendente": "awaiting",
-
         "won": "won",
         "fechado": "won",
-
         "lost": "lost",
         "perdido": "lost",
     }
