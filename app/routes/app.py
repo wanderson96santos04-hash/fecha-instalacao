@@ -143,6 +143,17 @@ def _redirect_admin_denied() -> RedirectResponse:
 @router.get("", response_class=HTMLResponse)
 def dashboard(request: Request):
     flashes = pop_flashes(request)
+
+    # ✅ FIX: não mostrar o aviso de admin no dashboard (/app)
+    try:
+        flashes = [
+            f for f in (flashes or [])
+            if (f.get("message") if isinstance(f, dict) else "") != "Somente o administrador tem acesso a essa área."
+        ]
+    except Exception:
+        # se o formato do flash não for dict, só mantém como veio (não quebra nada)
+        pass
+
     uid = _require_user(request)
 
     tz = _app_tz()
@@ -167,7 +178,7 @@ def dashboard(request: Request):
         if not user.is_pro:
             remaining = max(0, FREE_LIMIT_TOTAL_BUDGETS - total)
 
-        # ✅ FIX DEFINITIVO: usar todos os budgets (não filtrar por mês)
+        # ✅ FIX DEFINITIVO: usar todos os budgets
         month_budgets = budgets
 
         won = [b for b in month_budgets if _norm_status(b.status or "") == "won"]
@@ -180,7 +191,6 @@ def dashboard(request: Request):
         total_month = len(month_budgets)
         conversion_pct = (len(won) / total_month * 100.0) if total_month > 0 else 0.0
 
-        # ✅ FIX: fornece chaves "month_*" e também chaves simples (compat)
         metrics = {
             "month_won_value": _money_brl(won_value),
             "month_won_count": len(won),
@@ -218,8 +228,7 @@ def dashboard(request: Request):
 
 @router.get("/upgrade", response_class=HTMLResponse)
 def upgrade_page(request: Request):
-    # ✅ NÃO mostrar flashes nesta página (evita aparecer aviso do admin aqui)
-    pop_flashes(request)  # limpa flashes antigos
+    pop_flashes(request)
     flashes = []
 
     uid = _require_user(request)
@@ -229,7 +238,6 @@ def upgrade_page(request: Request):
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-    # ✅ CORREÇÃO: passa o link do checkout da Kiwify para o template
     checkout_url = (os.getenv("KIWIFY_CHECKOUT_URL") or "").strip()
 
     return templates.TemplateResponse(
@@ -245,8 +253,7 @@ def upgrade_page(request: Request):
 
 @router.get("/acquisition", response_class=HTMLResponse)
 def acquisition_page(request: Request):
-    # ✅ NÃO mostrar flashes nesta página (evita aparecer o aviso do admin aqui)
-    pop_flashes(request)  # limpa flashes antigos
+    pop_flashes(request)
     flashes = []
     uid = _require_user(request)
 
@@ -426,7 +433,6 @@ def cases_admin_list(request: Request):
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-        # ✅ FIX ADMIN
         if not _is_admin_user(user):
             return _redirect_admin_denied()
 
@@ -454,7 +460,6 @@ def cases_admin_new(request: Request):
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-        # ✅ FIX ADMIN
         if not _is_admin_user(user):
             return _redirect_admin_denied()
 
@@ -484,7 +489,6 @@ def cases_admin_edit(request: Request, item_id: int):
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-        # ✅ FIX ADMIN
         if not _is_admin_user(user):
             return _redirect_admin_denied()
 
