@@ -97,12 +97,16 @@ def _to_local_month(dt: datetime | None, tz: timezone) -> tuple[int, int] | None
     """
     Retorna (ano, mes) no fuso do app.
     - Se dt vier com tzinfo: converte para tz
-    - Se dt vier sem tzinfo: usa como está (não "move" o horário)
+    - Se dt vier sem tzinfo: assume UTC (padrão comum em bancos) e converte para tz
     """
     if not dt:
         return None
-    if dt.tzinfo is not None:
-        dt = dt.astimezone(tz)
+
+    if dt.tzinfo is None:
+        # ✅ assume UTC quando vier "naive"
+        dt = dt.replace(tzinfo=timezone.utc)
+
+    dt = dt.astimezone(tz)
     return (dt.year, dt.month)
 
 
