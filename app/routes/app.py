@@ -156,6 +156,11 @@ def dashboard(request: Request):
             if ym == now_ym:
                 month_budgets.append(b)
 
+        # ✅ NOVO FIX: se não tiver nenhum orçamento no mês atual, mas existir orçamento no sistema,
+        # usa o total geral para não ficar tudo zerado.
+        if len(month_budgets) == 0 and len(budgets) > 0:
+            month_budgets = budgets
+
         won = [b for b in month_budgets if _norm_status(b.status or "") == "won"]
         lost = [b for b in month_budgets if _norm_status(b.status or "") == "lost"]
         awaiting = [b for b in month_budgets if _norm_status(b.status or "") == "awaiting"]
