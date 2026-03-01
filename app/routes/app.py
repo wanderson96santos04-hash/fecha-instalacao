@@ -129,7 +129,11 @@ def _is_admin_user(user: User) -> bool:
 
 def _redirect_admin_denied() -> RedirectResponse:
     # evita aparecer {"detail":"Acesso negado"} na tela
-    return redirect("/app/cases", kind="error", message="Acesso negado.")
+    return redirect(
+        "/app/cases",
+        kind="error",
+        message="Somente o administrador tem acesso a essa área.",
+    )
 
 
 @router.get("", response_class=HTMLResponse)
