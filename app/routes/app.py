@@ -227,7 +227,8 @@ def dashboard(request: Request):
 
 @router.get("/acquisition", response_class=HTMLResponse)
 def acquisition_page(request: Request):
-    flashes = pop_flashes(request)
+    # ✅ NÃO mostrar flashes nesta página (evita aparecer o aviso do admin aqui)
+    flashes = []
     uid = _require_user(request)
 
     with SessionLocal() as db:
