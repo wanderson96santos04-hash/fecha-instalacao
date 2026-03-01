@@ -134,11 +134,17 @@ def dashboard(request: Request):
         if not user.is_pro:
             remaining = max(0, FREE_LIMIT_TOTAL_BUDGETS - total)
 
-        # ✅ FIX REAL: usa _as_utc para não zerar o painel por causa de timezone
+        # ✅ FIX REAL: usa _as_utc e NÃO deixa o painel zerar se created_at estiver NULL
         month_budgets = []
         for b in budgets:
             ts = _as_utc(b.created_at)
-            if ts and (ts >= month_start) and (ts < month_end):
+
+            # fallback seguro: se created_at vier vazio (NULL), inclui para não zerar o painel
+            if ts is None:
+                month_budgets.append(b)
+                continue
+
+            if month_start <= ts < month_end:
                 month_budgets.append(b)
 
         won = [b for b in month_budgets if _norm_status(b.status or "") == "won"]
