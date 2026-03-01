@@ -76,24 +76,40 @@ def _money_brl(v: float) -> str:
     return f"R$ {s}"
 
 
-def _month_window_utc(now: datetime) -> tuple[datetime, datetime]:
-    start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+# ✅ FIX: mês no fuso LOCAL (por padrão Brasil -03:00) para não zerar o painel
+def _app_tz() -> timezone:
+    """
+    Define o fuso horário usado no painel.
+    - Por padrão: -03:00 (Brasil)
+    - Você pode configurar por env:
+        APP_TZ_OFFSET=-3   (ou -2, -4 etc)
+    """
+    raw = (os.getenv("APP_TZ_OFFSET") or "-3").strip()
+    try:
+        hours = int(raw)
+    except Exception:
+        hours = -3
+    return timezone(timedelta(hours=hours))
+
+
+def _month_window(now: datetime) -> tuple[datetime, datetime]:
+    start = datetime(now.year, now.month, 1, tzinfo=now.tzinfo)
     if now.month == 12:
-        end = datetime(now.year + 1, 1, 1, tzinfo=timezone.utc)
+        end = datetime(now.year + 1, 1, 1, tzinfo=now.tzinfo)
     else:
-        end = datetime(now.year, now.month + 1, 1, tzinfo=timezone.utc)
+        end = datetime(now.year, now.month + 1, 1, tzinfo=now.tzinfo)
     return start, end
 
 
-# ✅ FIX: tratar created_at com/sem timezone sem “sumir” com os orçamentos do mês
-def _as_utc(dt: datetime | None) -> datetime | None:
+# ✅ FIX: tratar created_at com/sem timezone SEM perder orçamento do mês
+def _as_tz(dt: datetime | None, tz: timezone) -> datetime | None:
     if not dt:
         return None
-    # se vier sem tzinfo, assume UTC (não muda o valor numérico)
+    # se vier sem tzinfo, assume que foi gravado no fuso do app (Brasil)
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    # se vier com tzinfo, converte para UTC
-    return dt.astimezone(timezone.utc)
+        return dt.replace(tzinfo=tz)
+    # se vier com tzinfo, converte para o fuso do app
+    return dt.astimezone(tz)
 
 
 # ✅ FIX: aceitar status PT/EN para o painel do mês (sem mudar o banco)
@@ -113,8 +129,9 @@ def dashboard(request: Request):
     flashes = pop_flashes(request)
     uid = _require_user(request)
 
-    now = datetime.now(timezone.utc)
-    month_start, month_end = _month_window_utc(now)
+    tz = _app_tz()
+    now = datetime.now(tz)
+    month_start, month_end = _month_window(now)
 
     with SessionLocal() as db:
         user = db.get(User, uid)
@@ -134,10 +151,10 @@ def dashboard(request: Request):
         if not user.is_pro:
             remaining = max(0, FREE_LIMIT_TOTAL_BUDGETS - total)
 
-        # ✅ FIX REAL: usa _as_utc e NÃO deixa o painel zerar se created_at estiver NULL
+        # ✅ FIX REAL: usa _as_tz e NÃO deixa o painel zerar se created_at estiver NULL
         month_budgets = []
         for b in budgets:
-            ts = _as_utc(b.created_at)
+            ts = _as_tz(b.created_at, tz)
 
             # fallback seguro: se created_at vier vazio (NULL), inclui para não zerar o painel
             if ts is None:
@@ -157,15 +174,27 @@ def dashboard(request: Request):
         total_month = len(month_budgets)
         conversion_pct = (len(won) / total_month * 100.0) if total_month > 0 else 0.0
 
+        # ✅ FIX: fornece chaves "month_*" e também chaves simples (pra bater com qualquer dashboard.html)
         metrics = {
+            # formato "month_*"
             "month_won_value": _money_brl(won_value),
             "month_won_count": len(won),
             "month_lost_value": _money_brl(lost_value),
             "month_lost_count": len(lost),
             "month_conversion_pct": f"{conversion_pct:.0f}%",
-            "month_total_count": len(month_budgets),
+            "month_total_count": total_month,
             "month_awaiting": len(awaiting),
             "month_awaiting_count": len(awaiting),
+
+            # formato simples (compat)
+            "won_value": _money_brl(won_value),
+            "won_count": len(won),
+            "lost_value": _money_brl(lost_value),
+            "lost_count": len(lost),
+            "conversion_pct": f"{conversion_pct:.0f}%",
+            "total_count": total_month,
+            "awaiting": len(awaiting),
+            "awaiting_count": len(awaiting),
         }
 
     return templates.TemplateResponse(
