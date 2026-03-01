@@ -4,7 +4,7 @@ import os
 import re
 import io
 from datetime import datetime, timezone, timedelta
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -21,6 +21,10 @@ from app.services.followup import can_followup
 
 router = APIRouter(prefix="/app")
 templates = Jinja2Templates(directory="app/templates")
+
+# ✅ Contadores do Invite (cookie-only, sem mexer em DB)
+INVITE_COPY_COOKIE = "invite_copy_count"
+INVITE_CLICK_COOKIE = "invite_click_count"
 
 
 def _require_user(request: Request) -> int:
@@ -140,19 +144,36 @@ def _redirect_admin_denied() -> RedirectResponse:
     )
 
 
+def _get_int_cookie(request: Request, name: str) -> int:
+    raw = (request.cookies.get(name) or "").strip()
+    try:
+        v = int(raw)
+        return v if v >= 0 else 0
+    except Exception:
+        return 0
+
+
+def _set_int_cookie(resp: Response, name: str, value: int) -> None:
+    # cookie simples, 1 ano
+    resp.set_cookie(
+        name,
+        str(max(0, int(value))),
+        httponly=True,
+        samesite="lax",
+        max_age=60 * 60 * 24 * 365,
+        path="/",
+    )
+
+
 @router.get("", response_class=HTMLResponse)
 def dashboard(request: Request):
     flashes = pop_flashes(request)
 
-    # ✅ FIX: não mostrar o aviso de admin no dashboard (/app)
-    try:
-        flashes = [
-            f for f in (flashes or [])
-            if (f.get("message") if isinstance(f, dict) else "") != "Somente o administrador tem acesso a essa área."
-        ]
-    except Exception:
-        # se o formato do flash não for dict, só mantém como veio (não quebra nada)
-        pass
+    # ✅ remove somente esse aviso do admin do dashboard (sem mexer em outros flashes)
+    flashes = [
+        f for f in flashes
+        if (f.get("message") or "").strip() != "Somente o administrador tem acesso a essa área."
+    ]
 
     uid = _require_user(request)
 
@@ -380,10 +401,14 @@ def invite_page(request: Request):
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-    invite_link = "https://fecha-instalacao.onrender.com/signup"
-    copy_count = 0
-    click_count = 0
-    share_text = "Vem testar o sistema: https://fecha-instalacao.onrender.com/signup"
+    # ✅ agora lê contagem real dos cookies
+    copy_count = _get_int_cookie(request, INVITE_COPY_COOKIE)
+    click_count = _get_int_cookie(request, INVITE_CLICK_COOKIE)
+
+    # ✅ link passa por rota de redirect para contar clique
+    base = str(request.base_url).rstrip("/")
+    invite_link = f"{base}/app/invite/r"
+    share_text = f"Vem testar o sistema: {invite_link}"
 
     return templates.TemplateResponse(
         "invite/invite.html",
@@ -397,6 +422,26 @@ def invite_page(request: Request):
             "share_text": share_text,
         },
     )
+
+
+# ✅ rota que o invite.html já tenta chamar (agora existe)
+@router.post("/invite/copy")
+def invite_copy(request: Request):
+    _require_user(request)
+    current = _get_int_cookie(request, INVITE_COPY_COOKIE)
+    resp = Response(status_code=204)
+    _set_int_cookie(resp, INVITE_COPY_COOKIE, current + 1)
+    return resp
+
+
+# ✅ rota para contar clique e redirecionar para signup
+@router.get("/invite/r")
+def invite_redirect(request: Request):
+    _require_user(request)
+    current = _get_int_cookie(request, INVITE_CLICK_COOKIE)
+    resp = RedirectResponse(url="/signup", status_code=302)
+    _set_int_cookie(resp, INVITE_CLICK_COOKIE, current + 1)
+    return resp
 
 
 @router.get("/cases", response_class=HTMLResponse)
