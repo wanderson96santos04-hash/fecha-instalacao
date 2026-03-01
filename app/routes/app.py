@@ -238,12 +238,16 @@ def upgrade_page(request: Request):
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
+    # ✅ CORREÇÃO: passa o link do checkout da Kiwify para o template
+    checkout_url = (os.getenv("KIWIFY_CHECKOUT_URL") or "").strip()
+
     return templates.TemplateResponse(
         "upgrade.html",
         {
             "request": request,
             "flashes": flashes,
             "user": user,
+            "checkout_url": checkout_url,
         },
     )
 
