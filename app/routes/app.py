@@ -85,6 +85,18 @@ def _month_window_utc(now: datetime) -> tuple[datetime, datetime]:
     return start, end
 
 
+# ✅ FIX: aceitar status PT/EN para o painel do mês (sem mudar o banco)
+def _norm_status(s: str) -> str:
+    s = (s or "").strip().lower()
+    if s in ("won", "fechado", "fechado (mês)", "close", "closed"):
+        return "won"
+    if s in ("lost", "perdido", "perdido (mês)"):
+        return "lost"
+    if s in ("awaiting", "aguardando", "pendente", "aguardando (mês)"):
+        return "awaiting"
+    return s
+
+
 @router.get("", response_class=HTMLResponse)
 def dashboard(request: Request):
     flashes = pop_flashes(request)
@@ -118,9 +130,10 @@ def dashboard(request: Request):
             and (b.created_at.replace(tzinfo=timezone.utc) < month_end)
         ]
 
-        won = [b for b in month_budgets if (b.status or "").strip().lower() == "won"]
-        lost = [b for b in month_budgets if (b.status or "").strip().lower() == "lost"]
-        awaiting = [b for b in month_budgets if (b.status or "").strip().lower() == "awaiting"]
+        # ✅ FIX: painel agora conta mesmo se tiver "fechado/perdido/aguardando"
+        won = [b for b in month_budgets if _norm_status(b.status or "") == "won"]
+        lost = [b for b in month_budgets if _norm_status(b.status or "") == "lost"]
+        awaiting = [b for b in month_budgets if _norm_status(b.status or "") == "awaiting"]
 
         won_value = sum(_parse_brl_value(b.value or "") for b in won)
         lost_value = sum(_parse_brl_value(b.value or "") for b in lost)
@@ -856,6 +869,8 @@ def budgets_new_post(
     request: Request,
     client_name: str = Form(""),
     phone: str = Form(""),
+    # ✅ FIX: create_budget exige service_type (mas aceitamos o campo antigo "service" também)
+    service_type: str = Form("", alias="service_type"),
     service: str = Form(""),
     value: str = Form(""),
     payment_method: str = Form(""),
@@ -865,10 +880,14 @@ def budgets_new_post(
 
     client_name = (client_name or "").strip()
     phone = (phone or "").strip()
+    service_type = (service_type or "").strip()
     service = (service or "").strip()
     value = (value or "").strip()
     payment_method = (payment_method or "").strip()
     notes = (notes or "").strip()
+
+    # ✅ usa service_type se vier, senão usa service (compatível com template antigo)
+    final_service_type = service_type or service
 
     with SessionLocal() as db:
         user = db.get(User, uid)
@@ -878,13 +897,12 @@ def budgets_new_post(
         if not can_create_budget(db, user):
             return redirect("/app/upgrade", kind="error", message="Você atingiu o limite do plano gratuito.")
 
-        # ✅ CORRIGIDO: create_budget usa service_type (não usa service)
         create_budget(
             db=db,
             user_id=uid,
             client_name=client_name,
             phone=phone,
-            service_type=service,
+            service_type=final_service_type,
             value=value,
             payment_method=payment_method,
             notes=notes,
@@ -894,107 +912,81 @@ def budgets_new_post(
 
 
 # =========================
-# WHATSAPP (enviar orçamento)
+# WHATSAPP (ENVIO)
 # =========================
-
-def _fallback_budget_message(b: Budget) -> str:
-    # Mensagem segura (não depende do build_budget_message)
-    partes = []
-    if getattr(b, "service_type", None):
-        partes.append(f"Serviço: {b.service_type}")
-    if getattr(b, "value", None):
-        partes.append(f"Valor: {b.value}")
-    if getattr(b, "payment_method", None):
-        partes.append(f"Pagamento: {b.payment_method}")
-    if getattr(b, "notes", None):
-        partes.append(f"Obs: {b.notes}")
-
-    header = f"Olá {getattr(b, 'client_name', '') or ''}! Segue seu orçamento:"
-    body = "\n".join(partes) if partes else "Orçamento gerado no sistema."
-    return f"{header}\n\n{body}".strip()
-
 
 @router.get("/budgets/{budget_id}/whatsapp")
 def budgets_whatsapp(request: Request, budget_id: int):
     uid = _require_user(request)
 
     with SessionLocal() as db:
-        user = db.get(User, uid)
-        if not user:
-            return redirect("/login", kind="error", message="Faça login novamente.")
-
         budget = db.scalar(
             select(Budget).where(Budget.id == budget_id, Budget.user_id == uid)
         )
         if not budget:
             raise HTTPException(status_code=404, detail="Não encontrado")
 
-        # ✅ CORRIGIDO: build_budget_message() no seu projeto não aceita parâmetro.
-        # Então: tenta usar sem args; se der erro, usa fallback manual.
-        try:
-            msg = build_budget_message()  # se existir e funcionar
-        except Exception:
-            msg = _fallback_budget_message(budget)
+        # ✅ FIX: NÃO chamar build_budget_message(budget) porque a função não aceita args
+        # monta a mensagem aqui (só para essa rota, sem quebrar nada do resto)
+        parts = []
+        if (budget.service_type or "").strip():
+            parts.append(f"Serviço: {budget.service_type}")
+        if (budget.value or "").strip():
+            parts.append(f"Valor: {budget.value}")
+        if (budget.payment_method or "").strip():
+            parts.append(f"Pagamento: {budget.payment_method}")
+        if (budget.notes or "").strip():
+            parts.append(f"Obs: {budget.notes}")
 
-        phone = (getattr(budget, "phone", "") or "").strip()
+        msg = "Olá! Segue seu orçamento:\n" + "\n".join(parts) if parts else "Olá! Segue seu orçamento."
+
+        phone = (budget.phone or "").strip()
+        if not phone:
+            return redirect("/app", kind="error", message="Esse orçamento não tem telefone cadastrado.")
+
         url = whatsapp_link(phone, msg)
         return RedirectResponse(url=url, status_code=302)
 
 
 # =========================
-# STATUS DO ORÇAMENTO
+# STATUS (MARCAR)
 # =========================
 
-@router.get("/budgets/{budget_id}/status")
-def budgets_status_get(request: Request, budget_id: int, status: str = ""):
-    uid = _require_user(request)
-    status_s = (status or "").strip().lower()
-
-    if status_s not in ("won", "lost", "awaiting", ""):
-        return redirect("/app", kind="error", message="Status inválido.")
-
-    if not status_s:
-        return redirect("/app", kind="error", message="Informe o status.")
-
-    with SessionLocal() as db:
-        user = db.get(User, uid)
-        if not user:
-            return redirect("/login", kind="error", message="Faça login novamente.")
-
-        budget = db.scalar(
-            select(Budget).where(Budget.id == budget_id, Budget.user_id == uid)
-        )
-        if not budget:
-            raise HTTPException(status_code=404, detail="Não encontrado")
-
-        budget.status = status_s
-        db.add(budget)
-        db.commit()
-
-    return redirect("/app", kind="success", message="Status atualizado!")
-
-
 @router.post("/budgets/{budget_id}/status")
-def budgets_status_post(request: Request, budget_id: int, status: str = Form("")):
+def budgets_status_post(
+    request: Request,
+    budget_id: int,
+    status: str = Form(""),
+):
     uid = _require_user(request)
     status_s = (status or "").strip().lower()
 
-    if status_s not in ("won", "lost", "awaiting"):
+    # ✅ FIX: aceita PT/EN mas grava padronizado
+    mapping = {
+        "awaiting": "awaiting",
+        "aguardando": "awaiting",
+        "pendente": "awaiting",
+
+        "won": "won",
+        "fechado": "won",
+
+        "lost": "lost",
+        "perdido": "lost",
+    }
+
+    status_db = mapping.get(status_s)
+    if not status_db:
         return redirect("/app", kind="error", message="Status inválido.")
 
     with SessionLocal() as db:
-        user = db.get(User, uid)
-        if not user:
-            return redirect("/login", kind="error", message="Faça login novamente.")
-
         budget = db.scalar(
             select(Budget).where(Budget.id == budget_id, Budget.user_id == uid)
         )
         if not budget:
             raise HTTPException(status_code=404, detail="Não encontrado")
 
-        budget.status = status_s
+        budget.status = status_db
         db.add(budget)
         db.commit()
 
-    return redirect("/app", kind="success", message="Status atualizado!")
+    return RedirectResponse(url="/app", status_code=303)
