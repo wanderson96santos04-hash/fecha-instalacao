@@ -33,13 +33,6 @@ def _require_user(request: Request) -> int:
         raise HTTPException(status_code=401)
 
 
-def _require_admin(user: User):
-    # ✅ Protege área admin SEM mexer no banco:
-    # depende do @property is_admin no model User
-    if not getattr(user, "is_admin", False):
-        raise HTTPException(status_code=403, detail="Acesso negado")
-
-
 def _parse_brl_value(value: str) -> float:
     if not value:
         return 0.0
@@ -123,6 +116,20 @@ def _norm_status(s: str) -> str:
     if s in ("awaiting", "aguardando", "pendente", "aguardando (mês)"):
         return "awaiting"
     return s
+
+
+# ✅ FIX ADMIN (sem mexer no user.py):
+# Compara user.email com a env ADMIN_EMAIL do Render
+def _is_admin_user(user: User) -> bool:
+    admin_email = (os.getenv("ADMIN_EMAIL") or "").strip().lower()
+    if not admin_email:
+        return False
+    return (user.email or "").strip().lower() == admin_email
+
+
+def _redirect_admin_denied() -> RedirectResponse:
+    # evita aparecer {"detail":"Acesso negado"} na tela
+    return redirect("/app/cases", kind="error", message="Acesso negado.")
 
 
 @router.get("", response_class=HTMLResponse)
@@ -395,7 +402,9 @@ def cases_admin_list(request: Request):
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-        _require_admin(user)
+        # ✅ FIX ADMIN
+        if not _is_admin_user(user):
+            return _redirect_admin_denied()
 
     items: List[Dict] = []
 
@@ -421,7 +430,9 @@ def cases_admin_new(request: Request):
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-        _require_admin(user)
+        # ✅ FIX ADMIN
+        if not _is_admin_user(user):
+            return _redirect_admin_denied()
 
     return templates.TemplateResponse(
         "cases/admin_new.html",
@@ -436,15 +447,6 @@ def cases_admin_new(request: Request):
 
 @router.post("/cases/admin/new")
 def cases_admin_new_post(request: Request):
-    uid = _require_user(request)
-
-    with SessionLocal() as db:
-        user = db.get(User, uid)
-        if not user:
-            return redirect("/login", kind="error", message="Faça login novamente.")
-
-        _require_admin(user)
-
     return RedirectResponse(url="/app/cases/admin", status_code=302)
 
 
@@ -458,7 +460,9 @@ def cases_admin_edit(request: Request, item_id: int):
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
-        _require_admin(user)
+        # ✅ FIX ADMIN
+        if not _is_admin_user(user):
+            return _redirect_admin_denied()
 
     item = None
 
@@ -477,15 +481,6 @@ def cases_admin_edit(request: Request, item_id: int):
 
 @router.post("/cases/admin/edit/{item_id}")
 def cases_admin_edit_post(request: Request, item_id: int):
-    uid = _require_user(request)
-
-    with SessionLocal() as db:
-        user = db.get(User, uid)
-        if not user:
-            return redirect("/login", kind="error", message="Faça login novamente.")
-
-        _require_admin(user)
-
     return RedirectResponse(url="/app/cases/admin", status_code=302)
 
 
@@ -498,8 +493,6 @@ def cases_export(request: Request):
         user = db.get(User, uid)
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
-
-        _require_admin(user)
 
     return templates.TemplateResponse(
         "cases/export.html",
