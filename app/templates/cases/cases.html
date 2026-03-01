@@ -1,7 +1,21 @@
-{% extends "base_app.html" %}
+{% extends "base_app.html" %} 
 
 {% block content %}
 <div class="max-w-6xl mx-auto p-4">
+
+  {% if flashes %}
+    <div class="mb-4 space-y-2">
+      {% for f in flashes %}
+        <div class="px-4 py-3 rounded-xl border text-sm
+          {% if f.kind == 'error' %} border-red-200 bg-red-50 text-red-700
+          {% elif f.kind == 'success' %} border-green-200 bg-green-50 text-green-700
+          {% else %} border-slate-200 bg-slate-50 text-slate-700 {% endif %}">
+          {{ f.message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
   <div class="flex items-center justify-between mb-4">
     <h1 class="text-2xl font-bold">Prova real / Depoimentos</h1>
     <a class="px-4 py-2 rounded-xl border text-sm font-semibold" href="/app/cases/admin">Admin</a>
