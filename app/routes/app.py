@@ -856,7 +856,7 @@ def budgets_new_post(
     request: Request,
     client_name: str = Form(""),
     phone: str = Form(""),
-    service_type: str = Form(""),
+    service: str = Form(""),
     value: str = Form(""),
     payment_method: str = Form(""),
     notes: str = Form(""),
@@ -865,7 +865,7 @@ def budgets_new_post(
 
     client_name = (client_name or "").strip()
     phone = (phone or "").strip()
-    service_type = (service_type or "").strip()
+    service = (service or "").strip()
     value = (value or "").strip()
     payment_method = (payment_method or "").strip()
     notes = (notes or "").strip()
@@ -883,7 +883,7 @@ def budgets_new_post(
             user_id=uid,
             client_name=client_name,
             phone=phone,
-            service_type=service_type,
+            service_type=service,  # ✅ CORRIGIDO (era service=service)
             value=value,
             payment_method=payment_method,
             notes=notes,
@@ -891,6 +891,10 @@ def budgets_new_post(
 
     return redirect("/app", kind="success", message="Orçamento criado com sucesso!")
 
+
+# =========================
+# WHATSAPP (ENVIAR ORÇAMENTO)
+# =========================
 
 @router.get("/budgets/{budget_id}/whatsapp")
 def budgets_whatsapp(request: Request, budget_id: int):
@@ -905,11 +909,9 @@ def budgets_whatsapp(request: Request, budget_id: int):
             select(Budget).where(Budget.id == budget_id, Budget.user_id == uid)
         )
         if not budget:
-            return redirect("/app", kind="error", message="Orçamento não encontrado.")
+            raise HTTPException(status_code=404, detail="Não encontrado")
 
-        msg = build_budget_message(budget)
-        phone = (budget.phone or "").strip()
+        msg = build_budget_message(budget=budget)  # ✅ CORRIGIDO (keyword-only)
+        link = whatsapp_link(phone=(budget.phone or ""), text=msg)
 
-        url = whatsapp_link(phone, msg)
-
-    return RedirectResponse(url=url, status_code=302)
+    return RedirectResponse(url=link, status_code=302)
