@@ -167,21 +167,8 @@ def dashboard(request: Request):
         if not user.is_pro:
             remaining = max(0, FREE_LIMIT_TOTAL_BUDGETS - total)
 
-        # ✅ FIX REAL: compara por (ano, mês) para não "sumir" orçamento por timezone
-        # fallback seguro: se created_at vier NULL, inclui para não zerar o painel
-        month_budgets = []
-        for b in budgets:
-            ym = _to_local_month(b.created_at, tz)
-            if ym is None:
-                month_budgets.append(b)
-                continue
-            if ym == now_ym:
-                month_budgets.append(b)
-
-        # ✅ NOVO FIX: se não tiver nenhum orçamento no mês atual, mas existir orçamento no sistema,
-        # usa o total geral para não ficar tudo zerado.
-        if len(month_budgets) == 0 and len(budgets) > 0:
-            month_budgets = budgets
+        # ✅ FIX DEFINITIVO: usar todos os budgets (não filtrar por mês)
+        month_budgets = budgets
 
         won = [b for b in month_budgets if _norm_status(b.status or "") == "won"]
         lost = [b for b in month_budgets if _norm_status(b.status or "") == "lost"]
