@@ -15,7 +15,7 @@ from app.core.deps import get_user_id_from_request, redirect, pop_flashes
 from app.db.session import SessionLocal
 from app.models.user import User
 from app.models.budget import Budget
-from app.models.case import Case
+from app.models.case import Case  # ✅ (A) voltou
 from app.services.budget_service import can_create_budget, create_budget, FREE_LIMIT_TOTAL_BUDGETS
 from app.services.whatsapp import build_budget_message, whatsapp_link, followup_message
 from app.services.followup import can_followup
@@ -482,10 +482,12 @@ def cases_admin_list(request: Request):
         if not _is_admin_user(user):
             return _redirect_admin_denied()
 
-    items: List[Dict] = []
-
-    with SessionLocal() as db:
-        items = db.query(Case).all()
+        # ✅ (B) busca do banco
+        items = list(
+            db.scalars(
+                select(Case).order_by(desc(Case.id))
+            ).all()
+        )
 
     return templates.TemplateResponse(
         "cases/admin_list.html",
@@ -526,11 +528,11 @@ def cases_admin_new(request: Request):
 @router.post("/cases/admin/new")
 def cases_admin_new_post(
     request: Request,
-    name: str = Form(""),
-    city: str = Form(""),
-    service: str = Form(""),
-    value: str = Form(""),
-    phrase: str = Form(""),
+    name: str = Form("", alias="name"),
+    city: str = Form("", alias="city"),
+    service: str = Form("", alias="service"),
+    value: str = Form("", alias="value"),
+    phrase: str = Form("", alias="phrase"),
 ):
     uid = _require_user(request)
 
@@ -538,10 +540,10 @@ def cases_admin_new_post(
         user = db.get(User, uid)
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
-
         if not _is_admin_user(user):
             return _redirect_admin_denied()
 
+        # ✅ (C) salva no banco
         item = Case(
             name=(name or "").strip(),
             city=(city or "").strip(),
@@ -553,6 +555,36 @@ def cases_admin_new_post(
         db.commit()
 
     return RedirectResponse(url="/app/cases/admin", status_code=302)
+
+
+# ✅ Export por ID (corrige 404 do botão Exportar)
+@router.get("/cases/{item_id}/export", response_class=HTMLResponse)
+def cases_export_one(request: Request, item_id: int):
+    flashes = pop_flashes(request)
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+        if not _is_admin_user(user):
+            return _redirect_admin_denied()
+
+        item = db.get(Case, item_id)
+        if not item:
+            raise HTTPException(status_code=404, detail="Não encontrado")
+
+    return templates.TemplateResponse(
+        "cases/export.html",
+        {
+            "request": request,
+            "flashes": flashes,
+            "user": user,
+            "item": item,
+            "t": item,  # ✅ compat com template se ele usar t.*
+            "now": datetime.now(timezone.utc),
+        },
+    )
 
 
 @router.get("/cases/admin/edit/{item_id}", response_class=HTMLResponse)
@@ -568,7 +600,10 @@ def cases_admin_edit(request: Request, item_id: int):
         if not _is_admin_user(user):
             return _redirect_admin_denied()
 
-    item = None
+        # ✅ pega do banco (corrige tela branca / template quebrando)
+        item = db.get(Case, item_id)
+        if not item:
+            raise HTTPException(status_code=404, detail="Não encontrado")
 
     return templates.TemplateResponse(
         "cases/admin_edit.html",
@@ -577,6 +612,7 @@ def cases_admin_edit(request: Request, item_id: int):
             "flashes": flashes,
             "user": user,
             "item": item,
+            "t": item,  # ✅ FIX do erro: template usa t.id
             "item_id": item_id,
             "now": datetime.now(timezone.utc),
         },
@@ -584,21 +620,38 @@ def cases_admin_edit(request: Request, item_id: int):
 
 
 @router.post("/cases/admin/edit/{item_id}")
-def cases_admin_edit_post(request: Request, item_id: int):
+def cases_admin_edit_post(
+    request: Request,
+    item_id: int,
+    name: str = Form("", alias="name"),
+    city: str = Form("", alias="city"),
+    service: str = Form("", alias="service"),
+    value: str = Form("", alias="value"),
+    phrase: str = Form("", alias="phrase"),
+):
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+        if not _is_admin_user(user):
+            return _redirect_admin_denied()
+
+        item = db.get(Case, item_id)
+        if not item:
+            raise HTTPException(status_code=404, detail="Não encontrado")
+
+        item.name = (name or "").strip()
+        item.city = (city or "").strip()
+        item.service = (service or "").strip()
+        item.value = (value or "").strip()
+        item.phrase = (phrase or "").strip()
+
+        db.add(item)
+        db.commit()
+
     return RedirectResponse(url="/app/cases/admin", status_code=302)
-@router.get("/cases/admin/{item_id}/edit", response_class=HTMLResponse)
-def cases_admin_edit_alias(request: Request, item_id: int):
-    return cases_admin_edit(request, item_id)
-
-
-@router.post("/cases/admin/{item_id}/edit")
-def cases_admin_edit_post_alias(request: Request, item_id: int):
-    return cases_admin_edit_post(request, item_id)
-
-
-@router.get("/cases/{item_id}/export")
-def cases_export_alias(request: Request, item_id: int):
-    return RedirectResponse(url="/app/cases/export", status_code=302)
 
 
 @router.get("/cases/export", response_class=HTMLResponse)
@@ -611,12 +664,20 @@ def cases_export(request: Request):
         if not user:
             return redirect("/login", kind="error", message="Faça login novamente.")
 
+        # ✅ evita template quebrar se ele espera lista/itens
+        items = []
+        try:
+            items = list(db.scalars(select(Case).order_by(desc(Case.id))).all())
+        except Exception:
+            items = []
+
     return templates.TemplateResponse(
         "cases/export.html",
         {
             "request": request,
             "flashes": flashes,
             "user": user,
+            "items": items,
             "now": datetime.now(timezone.utc),
         },
     )
