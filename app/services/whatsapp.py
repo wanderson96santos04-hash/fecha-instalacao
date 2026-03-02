@@ -1,12 +1,14 @@
 from __future__ import annotations
+
 from urllib.parse import quote
 
 
 def normalize_phone_br(phone: str) -> str:
     """
     Normaliza telefone brasileiro para padrão internacional (55 + DDD + número).
+    Aceita formatos com espaços, parênteses, hífen etc.
     """
-    digits = "".join(ch for ch in phone if ch.isdigit())
+    digits = "".join(ch for ch in (phone or "") if ch.isdigit())
 
     if digits.startswith("55"):
         return digits
@@ -26,7 +28,7 @@ def build_budget_message(
     notes: str,
 ) -> str:
     """
-    Gera mensagem profissional de orçamento otimizada para conversão.
+    Mensagem profissional (modelo UAU) com quebras corretas pro WhatsApp.
     """
 
     client = (client_name or "").strip()
@@ -42,8 +44,8 @@ def build_budget_message(
     if notes_txt:
         lower = notes_txt.lower()
 
-        # Detecta se parece prazo
-        if any(word in lower for word in ["prazo", "dia", "dias", "hora", "horas", "semana"]):
+        # Heurística simples pra detectar se a nota parece prazo
+        if any(w in lower for w in ["prazo", "dia", "dias", "hora", "horas", "semana", "mes", "mês"]):
             prazo_line = f"📅 Prazo estimado: {notes_txt}\n"
         else:
             obs_line = f"📝 Observações: {notes_txt}\n"
@@ -67,21 +69,17 @@ def build_budget_message(
 
 def whatsapp_link(phone: str, message: str) -> str:
     """
-    Gera link do WhatsApp com encoding UTF-8 correto.
+    Gera link do WhatsApp com encoding correto.
     """
     p = normalize_phone_br(phone)
-
-    # Encoding completo para evitar quebra de linha errada
     encoded = quote(message, safe="")
-
     return f"https://wa.me/{p}?text={encoded}"
 
 
 def followup_message(client_name: str) -> str:
     """
-    Mensagem automática de follow-up profissional.
+    Mensagem de follow-up automática.
     """
-
     client = (client_name or "").strip()
 
     message = (
