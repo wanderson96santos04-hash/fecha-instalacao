@@ -586,6 +586,19 @@ def cases_admin_edit(request: Request, item_id: int):
 @router.post("/cases/admin/edit/{item_id}")
 def cases_admin_edit_post(request: Request, item_id: int):
     return RedirectResponse(url="/app/cases/admin", status_code=302)
+@router.get("/cases/admin/{item_id}/edit", response_class=HTMLResponse)
+def cases_admin_edit_alias(request: Request, item_id: int):
+    return cases_admin_edit(request, item_id)
+
+
+@router.post("/cases/admin/{item_id}/edit")
+def cases_admin_edit_post_alias(request: Request, item_id: int):
+    return cases_admin_edit_post(request, item_id)
+
+
+@router.get("/cases/{item_id}/export")
+def cases_export_alias(request: Request, item_id: int):
+    return RedirectResponse(url="/app/cases/export", status_code=302)
 
 
 @router.get("/cases/export", response_class=HTMLResponse)
