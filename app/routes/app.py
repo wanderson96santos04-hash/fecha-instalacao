@@ -9,7 +9,7 @@ from typing import Dict, List, Optional
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, text  # ✅ adicionado text()
 
 from app.core.deps import get_user_id_from_request, redirect, pop_flashes
 from app.db.session import SessionLocal
@@ -468,6 +468,74 @@ def cases_page(request: Request):
     )
 
 
+# ==========================
+# ✅ FIX DEPOIMENTOS (CASES)
+# - sem criar model
+# - sem mexer no resto do app
+# - cria tabela no banco e salva/consulta via SQL
+# ==========================
+
+def _cases_ensure_table(db) -> None:
+    # funciona bem com SQLite/Postgres (Render geralmente usa Postgres)
+    db.execute(text("""
+    CREATE TABLE IF NOT EXISTS cases_testimonials (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        city TEXT,
+        service TEXT,
+        value TEXT,
+        phrase TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )
+    """))
+    db.commit()
+
+
+def _cases_list(db) -> List[Dict]:
+    _cases_ensure_table(db)
+    rows = db.execute(text("""
+        SELECT id, name, city, service, value, phrase, created_at
+        FROM cases_testimonials
+        ORDER BY id DESC
+    """)).fetchall()
+
+    items: List[Dict] = []
+    for r in rows:
+        items.append(
+            {
+                "id": r[0],
+                "name": r[1],
+                "city": r[2],
+                "service": r[3],
+                "value": r[4],
+                "phrase": r[5],
+                "created_at": r[6],
+            }
+        )
+    return items
+
+
+def _cases_insert(db, name: str, city: str, service: str, value: str, phrase: str) -> None:
+    _cases_ensure_table(db)
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    db.execute(
+        text("""
+        INSERT INTO cases_testimonials (name, city, service, value, phrase, created_at)
+        VALUES (:name, :city, :service, :value, :phrase, :created_at)
+        """),
+        {
+            "name": name,
+            "city": city,
+            "service": service,
+            "value": value,
+            "phrase": phrase,
+            "created_at": now_iso,
+        },
+    )
+    db.commit()
+
+
 @router.get("/cases/admin", response_class=HTMLResponse)
 def cases_admin_list(request: Request):
     flashes = pop_flashes(request)
@@ -481,7 +549,8 @@ def cases_admin_list(request: Request):
         if not _is_admin_user(user):
             return _redirect_admin_denied()
 
-    items: List[Dict] = []
+        # ✅ agora busca do banco (não é mais [])
+        items = _cases_list(db)
 
     return templates.TemplateResponse(
         "cases/admin_list.html",
@@ -520,8 +589,39 @@ def cases_admin_new(request: Request):
 
 
 @router.post("/cases/admin/new")
-def cases_admin_new_post(request: Request):
-    return RedirectResponse(url="/app/cases/admin", status_code=302)
+def cases_admin_new_post(
+    request: Request,
+    name: str = Form(...),
+    city: str = Form(""),
+    service: str = Form(""),
+    value: str = Form(""),
+    phrase: str = Form("", alias="phrase"),
+    quote: str = Form("", alias="quote"),  # ✅ compatibilidade (não quebra template antigo)
+):
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+
+        if not _is_admin_user(user):
+            return _redirect_admin_denied()
+
+        final_phrase = (phrase or quote or "").strip()
+        if not final_phrase:
+            return redirect("/app/cases/admin/new", kind="error", message="Preencha a frase do depoimento.")
+
+        _cases_insert(
+            db=db,
+            name=(name or "").strip(),
+            city=(city or "").strip(),
+            service=(service or "").strip(),
+            value=(value or "").strip(),
+            phrase=final_phrase,
+        )
+
+    return redirect("/app/cases/admin", kind="success", message="Depoimento salvo!")
 
 
 @router.get("/cases/admin/edit/{item_id}", response_class=HTMLResponse)
