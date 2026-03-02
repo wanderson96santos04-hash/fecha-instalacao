@@ -15,7 +15,6 @@ from app.core.deps import get_user_id_from_request, redirect, pop_flashes
 from app.db.session import SessionLocal
 from app.models.user import User
 from app.models.budget import Budget
-from app.models.case import Case
 from app.services.budget_service import can_create_budget, create_budget, FREE_LIMIT_TOTAL_BUDGETS
 from app.services.whatsapp import build_budget_message, whatsapp_link, followup_message
 from app.services.followup import can_followup
@@ -483,9 +482,6 @@ def cases_admin_list(request: Request):
             return _redirect_admin_denied()
 
     items: List[Dict] = []
-
-    with SessionLocal() as db:
-        items = db.query(Case).all()
 
     return templates.TemplateResponse(
         "cases/admin_list.html",
