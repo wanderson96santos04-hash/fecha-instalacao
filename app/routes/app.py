@@ -557,7 +557,7 @@ def cases_admin_new_post(
     return RedirectResponse(url="/app/cases/admin", status_code=302)
 
 
-# ✅ Export por ID (corrige 404 do botão Exportar)
+# ✅ Export por ID (bate com o HTML: /app/cases/{{ t.id }}/export)
 @router.get("/cases/{item_id}/export", response_class=HTMLResponse)
 def cases_export_one(request: Request, item_id: int):
     flashes = pop_flashes(request)
@@ -581,13 +581,14 @@ def cases_export_one(request: Request, item_id: int):
             "flashes": flashes,
             "user": user,
             "item": item,
-            "t": item,  # ✅ compat com template se ele usar t.*
+            "t": item,  # ✅ compat com template (export.html pode usar t.*)
             "now": datetime.now(timezone.utc),
         },
     )
 
 
-@router.get("/cases/admin/edit/{item_id}", response_class=HTMLResponse)
+# ✅ EDIT (bate com o HTML: /app/cases/admin/{{ t.id }}/edit)
+@router.get("/cases/admin/{item_id}/edit", response_class=HTMLResponse)
 def cases_admin_edit(request: Request, item_id: int):
     flashes = pop_flashes(request)
     uid = _require_user(request)
@@ -600,7 +601,6 @@ def cases_admin_edit(request: Request, item_id: int):
         if not _is_admin_user(user):
             return _redirect_admin_denied()
 
-        # ✅ pega do banco (corrige tela branca / template quebrando)
         item = db.get(Case, item_id)
         if not item:
             raise HTTPException(status_code=404, detail="Não encontrado")
@@ -612,14 +612,14 @@ def cases_admin_edit(request: Request, item_id: int):
             "flashes": flashes,
             "user": user,
             "item": item,
-            "t": item,  # ✅ FIX do erro: template usa t.id
+            "t": item,  # ✅ FIX: template usa t.id / t.*
             "item_id": item_id,
             "now": datetime.now(timezone.utc),
         },
     )
 
 
-@router.post("/cases/admin/edit/{item_id}")
+@router.post("/cases/admin/{item_id}/edit")
 def cases_admin_edit_post(
     request: Request,
     item_id: int,
@@ -652,6 +652,37 @@ def cases_admin_edit_post(
         db.commit()
 
     return RedirectResponse(url="/app/cases/admin", status_code=302)
+
+
+# ✅ DELETE (bate com o HTML: POST /app/cases/admin/{{ t.id }}/delete)
+@router.post("/cases/admin/{item_id}/delete")
+def cases_admin_delete(request: Request, item_id: int):
+    uid = _require_user(request)
+
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if not user:
+            return redirect("/login", kind="error", message="Faça login novamente.")
+        if not _is_admin_user(user):
+            return _redirect_admin_denied()
+
+        item = db.get(Case, item_id)
+        if item:
+            db.delete(item)
+            db.commit()
+
+    return RedirectResponse(url="/app/cases/admin", status_code=302)
+
+
+# 🔁 Compat: mantém as rotas antigas (se algum lugar ainda chamar)
+@router.get("/cases/admin/edit/{item_id}", response_class=HTMLResponse)
+def cases_admin_edit_legacy(request: Request, item_id: int):
+    return RedirectResponse(url=f"/app/cases/admin/{item_id}/edit", status_code=302)
+
+
+@router.post("/cases/admin/edit/{item_id}")
+def cases_admin_edit_post_legacy(request: Request, item_id: int):
+    return RedirectResponse(url=f"/app/cases/admin/{item_id}/edit", status_code=307)
 
 
 @router.get("/cases/export", response_class=HTMLResponse)
