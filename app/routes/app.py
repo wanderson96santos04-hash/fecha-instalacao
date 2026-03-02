@@ -1155,21 +1155,18 @@ def budgets_whatsapp(request: Request, budget_id: int):
         if not budget:
             raise HTTPException(status_code=404, detail="Não encontrado")
 
-        parts = []
-        if (budget.service_type or "").strip():
-            parts.append(f"Serviço: {budget.service_type}")
-        if (budget.value or "").strip():
-            parts.append(f"Valor: {budget.value}")
-        if (budget.payment_method or "").strip():
-            parts.append(f"Pagamento: {budget.payment_method}")
-        if (budget.notes or "").strip():
-            parts.append(f"Obs: {budget.notes}")
-
-        msg = "Olá! Segue seu orçamento:\n" + "\n".join(parts) if parts else "Olá! Segue seu orçamento."
-
         phone = (budget.phone or "").strip()
         if not phone:
             return redirect("/app", kind="error", message="Esse orçamento não tem telefone cadastrado.")
+
+        # ✅ ÚNICA MUDANÇA: usa o modelo UAU (app/services/whatsapp.py)
+        msg = build_budget_message(
+            client_name=(budget.client_name or "").strip(),
+            service_type=(budget.service_type or "").strip(),
+            value=(budget.value or "").strip(),
+            payment_method=(budget.payment_method or "").strip(),
+            notes=(budget.notes or "").strip(),
+        )
 
         url = whatsapp_link(phone, msg)
         return RedirectResponse(url=url, status_code=302)
