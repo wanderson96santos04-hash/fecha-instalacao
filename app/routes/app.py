@@ -758,20 +758,28 @@ def social_proof_generate(
     cidade_s = (cidade or "").strip()
     detalhe_s = (detalhe or "").strip()
 
-    partes = []
-    if servico_s:
-        partes.append(f"Serviço fechado: {servico_s}")
+    # ✅ Formatação automática do valor
+    valor_formatado = ""
     if valor_s:
-        partes.append(f"Valor: {valor_s}")
-    if cidade_s:
-        partes.append(f"Cidade: {cidade_s}")
-    if detalhe_s:
-        partes.append(f"Detalhe: {detalhe_s}")
+        try:
+            v = _parse_brl_value(valor_s)
+            valor_formatado = _money_brl(v)
+        except Exception:
+            valor_formatado = valor_s
 
-    if partes:
-        result = "✅ Prova social pronta:\n" + " • ".join(partes)
-    else:
+    if not (servico_s or valor_s or cidade_s or detalhe_s):
         result = "Preencha o formulário para gerar a prova social."
+    else:
+        # ✅ TEXTO PREMIUM
+        detalhe_line = f"Cliente destacou {detalhe_s}." if detalhe_s else "Cliente elogiou o serviço."
+        result = (
+            "🚀 MAIS UM SERVIÇO CONCLUÍDO!\n\n"
+            f"📍 {cidade_s}\n"
+            f"🔧 {servico_s}\n"
+            f"💰 {valor_formatado}\n\n"
+            f"{detalhe_line}\n\n"
+            "Seguimos entregando qualidade e compromisso!"
+        )
 
     return templates.TemplateResponse(
         "social_proof/social_proof.html",
@@ -803,18 +811,33 @@ def _sp_get_payload(
 
 
 def _sp_text(payload: dict) -> str:
-    partes = []
-    if payload["servico"]:
-        partes.append(f"Serviço fechado: {payload['servico']}")
-    if payload["valor"]:
-        partes.append(f"Valor: {payload['valor']}")
-    if payload["cidade"]:
-        partes.append(f"Cidade: {payload['cidade']}")
-    if payload["detalhe"]:
-        partes.append(f"Detalhe: {payload['detalhe']}")
-    if not partes:
-        return "Prova social (vazia). Preencha os campos antes de exportar."
-    return "Prova social\n\n" + "\n".join(partes)
+    servico = (payload.get("servico", "") or "").strip()
+    valor = (payload.get("valor", "") or "").strip()
+    cidade = (payload.get("cidade", "") or "").strip()
+    detalhe = (payload.get("detalhe", "") or "").strip()
+
+    if not (servico or valor or cidade or detalhe):
+        return "Prova social vazia."
+
+    # ✅ Formatação automática do valor (PDF/PPT)
+    valor_formatado = ""
+    if valor:
+        try:
+            v = _parse_brl_value(valor)
+            valor_formatado = _money_brl(v)
+        except Exception:
+            valor_formatado = valor
+
+    detalhe_line = f"Cliente destacou {detalhe}." if detalhe else "Cliente elogiou o serviço."
+
+    return (
+        "🚀 MAIS UM SERVIÇO CONCLUÍDO!\n\n"
+        f"📍 {cidade}\n"
+        f"🔧 {servico}\n"
+        f"💰 {valor_formatado}\n\n"
+        f"{detalhe_line}\n\n"
+        "Seguimos entregando qualidade e compromisso!"
+    )
 
 
 @router.get("/social-proof/pdf")
